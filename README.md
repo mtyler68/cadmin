@@ -61,6 +61,8 @@ docker compose -f docker/fhir/compose.yml up -d
 | FHIR API (via gateway) | http://localhost:8080/fhir |
 | PostgreSQL | localhost:5432 (`admin` / `admin`, database `hapi`) |
 
+HAPI assigns **UUID** resource IDs (`hapi.fhir.server_id_strategy: UUID`). Recreate the Postgres volume after changing `fhir_version` or the ID strategy.
+
 The gateway route `/fhir/**` forwards to `cadmin.fhir.uri` (default `http://localhost:8081`) and strips the browser session cookie so HAPI does not see it. In OIDC mode the same route also applies `TokenRelay` so the access token is sent downstream.
 
 Override the FHIR origin:

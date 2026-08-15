@@ -134,12 +134,7 @@ CadminApp.register("patients", function (params) {
     }
 
     function createdId(body, xhr, resourceType) {
-        if (body && body.id) {
-            return body.id;
-        }
-        const header = (xhr && (xhr.getResponseHeader("Location") || xhr.getResponseHeader("Content-Location"))) || "";
-        const match = header.match(new RegExp(resourceType + "/([^/?#]+)"));
-        return match ? decodeURIComponent(match[1]) : "";
+        return CadminApi.createdResourceId(body, xhr, resourceType);
     }
 
     function hideModal(id, then) {

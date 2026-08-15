@@ -1,5 +1,5 @@
 CadminApp.register("practitioners", function (params) {
-    const token = params[0] ? decodeURIComponent(params[0]) : "";
+    const token = CadminApi.routeParamId(params);
     if (token) {
         CadminApi.fhir("/Practitioner/" + encodeURIComponent(token)).done(function (practitioner) {
             CadminPractitionerDetail.render(practitioner);
@@ -132,12 +132,7 @@ function renderPractitionerList(initialQuery) {
     }
 
     function createdId(body, xhr, resourceType) {
-        if (body && body.id) {
-            return body.id;
-        }
-        const header = (xhr && (xhr.getResponseHeader("Location") || xhr.getResponseHeader("Content-Location"))) || "";
-        const match = header.match(new RegExp(resourceType + "/([^/?#]+)"));
-        return match ? decodeURIComponent(match[1]) : "";
+        return CadminApi.createdResourceId(body, xhr, resourceType);
     }
 
     function hideModal(id, then) {

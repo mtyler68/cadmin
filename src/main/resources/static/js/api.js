@@ -130,6 +130,57 @@ window.CadminApi = (function ($) {
         return $("<div>").text(value == null ? "" : String(value)).html();
     }
 
+    function decodeId(value) {
+        const text = value == null ? "" : String(value);
+        if (!text) {
+            return "";
+        }
+        try {
+            return decodeURIComponent(text);
+        } catch (error) {
+            return text;
+        }
+    }
+
+    function routeParamId(params) {
+        return (params || []).map(decodeId).filter(Boolean).join("/");
+    }
+
+    function referenceId(ref) {
+        if (!ref) {
+            return "";
+        }
+        const reference = typeof ref === "string" ? ref : (ref.reference || "");
+        const urn = reference.match(/^urn:uuid:([^/?#]+)$/i);
+        if (urn) {
+            return decodeId(urn[1]);
+        }
+        const match = reference.match(/\/([^/]+)$/);
+        return match ? decodeId(match[1]) : "";
+    }
+
+    function createdResourceId(body, xhr, resourceType) {
+        if (body && body.id) {
+            return body.id;
+        }
+        const header = (xhr && (xhr.getResponseHeader("Location") || xhr.getResponseHeader("Content-Location"))) || "";
+        if (!header) {
+            return "";
+        }
+        const urn = header.match(/urn:uuid:([^/?#]+)/i);
+        if (urn) {
+            return decodeId(urn[1]);
+        }
+        if (resourceType) {
+            const match = header.match(new RegExp(resourceType + "/([^/?#]+)"));
+            if (match) {
+                return decodeId(match[1]);
+            }
+        }
+        const tail = header.match(/\/([^/?#]+)(?:\/_history\/[^/?#]+)?\/?$/);
+        return tail ? decodeId(tail[1]) : "";
+    }
+
     return {
         get: get,
         post: function (url, data) { return send(url, "POST", data); },
@@ -139,6 +190,9 @@ window.CadminApi = (function ($) {
         fhir: fhir,
         showAlert: showAlert,
         showToast: showToast,
-        escapeHtml: escapeHtml
+        escapeHtml: escapeHtml,
+        routeParamId: routeParamId,
+        referenceId: referenceId,
+        createdResourceId: createdResourceId
     };
 }(jQuery));

@@ -203,6 +203,10 @@ a {
     letter-spacing: 0.04em;
 }
 
+.table code {
+    word-break: break-all;
+}
+
 .btn-primary,
 .bg-primary {
     background-color: var(--cadmin-primary) !important;

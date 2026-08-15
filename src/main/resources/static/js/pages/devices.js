@@ -1,5 +1,5 @@
 CadminApp.register("devices", function (params) {
-    const token = params[0] ? decodeURIComponent(params[0]) : "";
+    const token = CadminApi.routeParamId(params);
     if (token) {
         CadminApi.fhir("/Device/" + encodeURIComponent(token)).done(function (device) {
             CadminDeviceDetail.render(device);
@@ -115,8 +115,7 @@ function renderDeviceList(initialQuery) {
     }
 
     function refId(ref) {
-        const match = ((ref && ref.reference) || "").match(/\/([^/]+)$/);
-        return match ? match[1] : "";
+        return CadminApi.referenceId(ref);
     }
 
     function nameValue(item) {
@@ -166,12 +165,7 @@ function renderDeviceList(initialQuery) {
     }
 
     function createdId(body, xhr, resourceType) {
-        if (body && body.id) {
-            return body.id;
-        }
-        const header = (xhr && (xhr.getResponseHeader("Location") || xhr.getResponseHeader("Content-Location"))) || "";
-        const match = header.match(new RegExp(resourceType + "/([^/?#]+)"));
-        return match ? decodeURIComponent(match[1]) : "";
+        return CadminApi.createdResourceId(body, xhr, resourceType);
     }
 
     function currentAssociation(resource) {

@@ -65,8 +65,7 @@ window.CadminDeviceDetail = (function () {
     }
 
     function refId(ref) {
-        const match = ((ref && ref.reference) || "").match(/\/([^/]+)$/);
-        return match ? match[1] : "";
+        return CadminApi.referenceId(ref);
     }
 
     function personName(resource) {

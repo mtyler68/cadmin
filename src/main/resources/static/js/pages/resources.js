@@ -1,6 +1,6 @@
 CadminApp.register("resources", function (params) {
-    const type = params[0] || "Patient";
-    const id = params[1] || "";
+    const type = params[0] ? decodeURIComponent(params[0]) : "Patient";
+    const id = CadminApi.routeParamId(params.slice(1));
     const $root = $("#app-content");
     $root.html(
         '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
@@ -17,7 +17,8 @@ CadminApp.register("resources", function (params) {
                     '</div>' +
                     '<div class="col-md-5">' +
                         '<label class="form-label">ID (optional)</label>' +
-                        '<input class="form-control" id="res-id" value="' + CadminApi.escapeHtml(id) + '" placeholder="Leave blank to search">' +
+                        '<input class="form-control" id="res-id" value="' + CadminApi.escapeHtml(id) +
+                            '" placeholder="UUID, e.g. 550e8400-e29b-41d4-a716-446655440000">' +
                     '</div>' +
                     '<div class="col-md-3">' +
                         '<button class="btn btn-primary w-100" type="submit">Fetch</button>' +

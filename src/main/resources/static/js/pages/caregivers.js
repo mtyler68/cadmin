@@ -1,5 +1,5 @@
 CadminApp.register("caregivers", function (params) {
-    const token = params[0] ? decodeURIComponent(params[0]) : "";
+    const token = CadminApi.routeParamId(params);
     if (token) {
         CadminApi.fhir("/RelatedPerson/" + encodeURIComponent(token)).done(function (person) {
             CadminCaregiverDetail.render(person);

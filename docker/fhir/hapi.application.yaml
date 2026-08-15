@@ -11,8 +11,10 @@ spring:
 
 hapi:
   fhir:
-    # Recreate the Postgres volume after changing fhir_version.
+    # Recreate the Postgres volume after changing fhir_version or ID strategy.
     fhir_version: R5
+    server_id_strategy: UUID
+    client_id_strategy: ANY
     openapi_enabled: true
     cors:
       allow_Credentials: true

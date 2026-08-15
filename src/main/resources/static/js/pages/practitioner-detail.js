@@ -65,8 +65,7 @@ window.CadminPractitionerDetail = (function () {
     }
 
     function refId(ref) {
-        const match = ((ref && ref.reference) || "").match(/\/([^/]+)$/);
-        return match ? match[1] : "";
+        return CadminApi.referenceId(ref);
     }
 
     function personName(resource) {
@@ -149,9 +148,7 @@ window.CadminPractitionerDetail = (function () {
     }
 
     function createdResourceId(xhr, resourceType) {
-        const header = (xhr && (xhr.getResponseHeader("Location") || xhr.getResponseHeader("Content-Location"))) || "";
-        const match = header.match(new RegExp(resourceType + "/([^/?#]+)"));
-        return match ? decodeURIComponent(match[1]) : "";
+        return CadminApi.createdResourceId(null, xhr, resourceType);
     }
 
     function currentCode(cc) {
