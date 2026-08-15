@@ -22,6 +22,14 @@ final class SecuritySupport {
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers(SecurityPaths.PUBLIC).permitAll()
+                        .pathMatchers("/fhir/Organization", "/fhir/Organization/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/OrganizationAffiliation", "/fhir/OrganizationAffiliation/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/Location", "/fhir/Location/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/Endpoint", "/fhir/Endpoint/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/PractitionerRole", "/fhir/PractitionerRole/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/CareTeam", "/fhir/CareTeam/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/Library", "/fhir/Library/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/SearchParameter", "/fhir/SearchParameter/**").hasRole("ADMIN")
                         .anyExchange().authenticated())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new SpaAuthenticationEntryPoint()))

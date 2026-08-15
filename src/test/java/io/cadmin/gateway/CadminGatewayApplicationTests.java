@@ -43,6 +43,95 @@ class CadminGatewayApplicationTests {
     }
 
     @Test
+    void organizationFhirRequiresAuthentication() {
+        webTestClient.get()
+                .uri("/fhir/Organization")
+                .header("Accept", "application/fhir+json")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @WithMockUser(username = "clinician", roles = {"USER"})
+    void organizationFhirIsForbiddenForNonAdmin() {
+        webTestClient.get()
+                .uri("/fhir/Organization")
+                .header("Accept", "application/fhir+json")
+                .exchange()
+                .expectStatus().isForbidden();
+    }
+
+    @Test
+    @WithMockUser(username = "clinician", roles = {"USER"})
+    void organizationRelatedFhirIsForbiddenForNonAdmin() {
+        webTestClient.get().uri("/fhir/Location").header("Accept", "application/fhir+json")
+                .exchange().expectStatus().isForbidden();
+        webTestClient.get().uri("/fhir/OrganizationAffiliation").header("Accept", "application/fhir+json")
+                .exchange().expectStatus().isForbidden();
+        webTestClient.get().uri("/fhir/Endpoint").header("Accept", "application/fhir+json")
+                .exchange().expectStatus().isForbidden();
+        webTestClient.get().uri("/fhir/PractitionerRole").header("Accept", "application/fhir+json")
+                .exchange().expectStatus().isForbidden();
+    }
+
+    @Test
+    void careTeamFhirRequiresAuthentication() {
+        webTestClient.get()
+                .uri("/fhir/CareTeam")
+                .header("Accept", "application/fhir+json")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @WithMockUser(username = "clinician", roles = {"USER"})
+    void careTeamFhirIsForbiddenForNonAdmin() {
+        webTestClient.get()
+                .uri("/fhir/CareTeam")
+                .header("Accept", "application/fhir+json")
+                .exchange()
+                .expectStatus().isForbidden();
+    }
+
+    @Test
+    void libraryFhirRequiresAuthentication() {
+        webTestClient.get()
+                .uri("/fhir/Library")
+                .header("Accept", "application/fhir+json")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @WithMockUser(username = "clinician", roles = {"USER"})
+    void libraryFhirIsForbiddenForNonAdmin() {
+        webTestClient.get()
+                .uri("/fhir/Library")
+                .header("Accept", "application/fhir+json")
+                .exchange()
+                .expectStatus().isForbidden();
+    }
+
+    @Test
+    void searchParameterFhirRequiresAuthentication() {
+        webTestClient.get()
+                .uri("/fhir/SearchParameter")
+                .header("Accept", "application/fhir+json")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @WithMockUser(username = "clinician", roles = {"USER"})
+    void searchParameterFhirIsForbiddenForNonAdmin() {
+        webTestClient.get()
+                .uri("/fhir/SearchParameter")
+                .header("Accept", "application/fhir+json")
+                .exchange()
+                .expectStatus().isForbidden();
+    }
+
+    @Test
     void currentUserRequiresAuthentication() {
         webTestClient.get()
                 .uri("/api/auth/me")

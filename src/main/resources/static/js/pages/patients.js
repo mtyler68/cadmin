@@ -78,7 +78,7 @@ CadminApp.register("patients", function (params) {
                     "<td>" + CadminApi.escapeHtml(p.birthDate || "—") + "</td>" +
                     "<td><code>" + CadminApi.escapeHtml(p.id) + "</code></td>" +
                     '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="#/resources/Patient/' +
-                        encodeURIComponent(p.id) + '">Open</a></td>' +
+                        encodeURIComponent(p.id) + '" title="Open" aria-label="Open"><i class="bi bi-eye"></i></a></td>' +
                     "</tr>";
             });
             $("#patient-rows").html(rows.join(""));

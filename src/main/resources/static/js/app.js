@@ -18,8 +18,21 @@ window.CadminApp = (function ($) {
         $('.sidebar .nav-item[data-route="' + name + '"]').addClass("active");
     }
 
+    function isAdmin(user) {
+        return ((user && user.roles) || []).some(function (role) {
+            return /^(ROLE_)?ADMIN$/i.test(role);
+        });
+    }
+
     function render() {
         const route = parseHash();
+        if ((route.name === "organizations" || route.name === "care-teams"
+                || route.name === "locations" || route.name === "pds-policies"
+                || route.name === "search-parameters")
+                && !isAdmin(currentUser)) {
+            window.location.hash = "#/dashboard";
+            return;
+        }
         setActive(route.name);
         const view = routes[route.name] || routes.dashboard;
         $("#app-content").html('<div class="text-muted py-5 text-center">Loading…</div>');
@@ -30,6 +43,9 @@ window.CadminApp = (function ($) {
         currentUser = user;
         $("#topbar-username").text(user.displayName || user.username);
         $("#topbar-role").text((user.roles || []).join(", ") || user.mode);
+        if (!isAdmin(user)) {
+            $(".admin-only").addClass("d-none");
+        }
     }
 
     function initChrome() {
@@ -72,6 +88,7 @@ window.CadminApp = (function ($) {
         start: start,
         user: function () { return currentUser; },
         config: function () { return config; },
+        isAdmin: function () { return isAdmin(currentUser); },
         navigate: function (hash) { window.location.hash = hash; }
     };
 }(jQuery));

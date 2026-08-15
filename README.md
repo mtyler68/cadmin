@@ -23,6 +23,29 @@ Open http://localhost:8080 and sign in with `admin` / `admin` (or `clinician` / 
 
 The SPA is served from the gateway. Calls to `/fhir/**` are proxied to HAPI FHIR at `http://localhost:8081` (start that stack separately).
 
+## Live reload (DevTools)
+
+`spring-boot-devtools` is on the runtime classpath when you start from Maven or an IDE. It watches `target/classes` and reloads after a compile:
+
+- **Java / configuration** — DevTools performs a fast application restart
+- **Static SPA files** (`src/main/resources/static/**`) — copied onto the classpath and served without a restart (caching is disabled in the `local` profile)
+
+Start the gateway and leave it running:
+
+```bash
+./mvnw spring-boot:run
+```
+
+After you edit Java, YAML, HTML, CSS, or JS, compile so DevTools sees the classpath change:
+
+```bash
+./mvnw compile
+```
+
+In IntelliJ IDEA use **Build → Build Project** (or enable automatic build while the app is running). In Eclipse, saving a file is enough.
+
+Then refresh the browser. DevTools is not included in the packaged jar (`java -jar`), so production starts are unchanged.
+
 ## HAPI FHIR JPA Starter
 
 ```bash
