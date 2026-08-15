@@ -83,6 +83,10 @@ a {
     font-size: 1.4rem;
 }
 
+.sidebar-brand-text {
+    white-space: nowrap;
+}
+
 .sidebar-heading {
     color: rgba(255, 255, 255, 0.45);
     font-size: 0.65rem;

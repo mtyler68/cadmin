@@ -1,6 +1,6 @@
 spring:
   application:
-    name: cadmin-gateway
+    name: fhir-box
   profiles:
     default: local
   jackson:
@@ -51,7 +51,7 @@ management:
 info:
   app:
     name: ${spring.application.name}
-    description: Cadmin SPA gateway and FHIR proxy
+    description: Hands-on explorer for FHIR resources, search, and server capabilities
 
 logging:
   level:

@@ -1,6 +1,8 @@
-# Cadmin
+# FHIR Box
 
-Spring Cloud Gateway host for a Bootstrap / jQuery single-page admin UI. The gateway authenticates the browser, serves the SPA, and proxies API calls to downstream systems such as [HAPI FHIR JPA Starter](https://github.com/hapifhir/hapi-fhir-jpaserver-starter).
+FHIR Box is a hands-on explorer for [FHIR](https://hl7.org/fhir/). Use it to browse resources, try search, walk relationships, and inspect what a FHIR server can do.
+
+It runs as a Spring Cloud Gateway host for a Bootstrap / jQuery UI. The gateway authenticates the browser, serves the app, and proxies API calls to [HAPI FHIR JPA Starter](https://github.com/hapifhir/hapi-fhir-jpaserver-starter).
 
 Security is switchable:
 
@@ -131,7 +133,7 @@ spring.cloud.gateway.server.webflux.routes:
 
 ```
 src/main/java/io/cadmin/gateway/   Gateway, security, JSON API
-src/main/resources/static/          Bootstrap admin SPA (jQuery)
+src/main/resources/static/          FHIR Box UI (Bootstrap / jQuery)
 docker/fhir/                        HAPI FHIR + PostgreSQL
 docker/keycloak/                    Keycloak + PostgreSQL + realm import
 ```

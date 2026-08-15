@@ -2,7 +2,10 @@ CadminApp.register("dashboard", function () {
     const $root = $("#app-content");
     $root.html(
         '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
-            '<h1 class="h3 mb-0 page-title">Dashboard</h1>' +
+            '<div>' +
+                '<h1 class="h3 mb-1 page-title">Dashboard</h1>' +
+                '<p class="text-muted mb-0">Explore FHIR resources, search, and what this server can do.</p>' +
+            '</div>' +
             '<span class="badge bg-primary badge-mode" id="dash-mode"></span>' +
         '</div>' +
         '<div class="row" id="dash-cards"></div>' +
@@ -19,6 +22,7 @@ CadminApp.register("dashboard", function () {
                     '<div class="card-body">' +
                         '<a class="btn btn-primary me-2 mb-2" href="#/patients">Browse patients</a>' +
                         '<a class="btn btn-outline-primary me-2 mb-2" href="#/resources">Open FHIR browser</a>' +
+                        '<a class="btn btn-outline-primary me-2 mb-2" href="#/capabilities">FHIR capabilities</a>' +
                         '<a class="btn btn-outline-secondary mb-2" href="#/settings">Settings</a>' +
                     '</div>' +
                 '</div>' +

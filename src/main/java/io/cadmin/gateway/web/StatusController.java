@@ -46,7 +46,7 @@ public class StatusController {
             fhir.put("error", error);
         }
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("application", "cadmin-gateway");
+        body.put("application", "FHIR Box");
         body.put("securityMode", properties.security().mode());
         body.put("fhir", fhir);
         return body;

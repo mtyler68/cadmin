@@ -84,7 +84,7 @@ CadminApp.register("search-parameters", function (params) {
                                 "</select></div>" +
                         "</div>" +
                         '<div class="mb-3"><label class="form-label">URL</label>' +
-                            '<input class="form-control" id="sp-url" placeholder="https://cadmin.local/fhir/SearchParameter/{code}"></div>' +
+                            '<input class="form-control" id="sp-url" placeholder="https://fhirbox.local/fhir/SearchParameter/{code}"></div>' +
                         '<div class="mb-0"><label class="form-label">Expression</label>' +
                             '<input class="form-control" id="sp-expression" placeholder="FHIRPath, e.g. Patient.name"></div>' +
                     "</div>" +
@@ -158,7 +158,7 @@ CadminApp.register("search-parameters", function (params) {
         const name = $("#sp-name").val().trim();
         const resource = {
             resourceType: "SearchParameter",
-            url: $("#sp-url").val().trim() || ("https://cadmin.local/fhir/SearchParameter/" + encodeURIComponent(code)),
+            url: $("#sp-url").val().trim() || ("https://fhirbox.local/fhir/SearchParameter/" + encodeURIComponent(code)),
             name: name,
             status: $("#sp-status").val() || "draft",
             description: $("#sp-description").val(),

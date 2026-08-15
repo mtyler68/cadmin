@@ -26,7 +26,7 @@ CadminApp.register("settings", function () {
                 '<div class="card shadow mb-4">' +
                     '<div class="card-header py-3"><h6 class="m-0">Downstream proxies</h6></div>' +
                     '<div class="card-body">' +
-                        "<p>The gateway publishes the SPA and proxies browser calls so the UI stays same-origin.</p>" +
+                        "<p>FHIR Box serves the UI and proxies browser calls so exploration stays same-origin.</p>" +
                         '<ul class="mb-0">' +
                             "<li><code>/fhir/**</code> → HAPI FHIR JPA Starter (<code>cadmin.fhir.uri</code>)</li>" +
                             "<li><code>/api/**</code> → gateway JSON endpoints</li>" +
