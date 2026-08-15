@@ -1,0 +1,64 @@
+spring:
+  application:
+    name: cadmin-gateway
+  profiles:
+    default: local
+  jackson:
+    default-property-inclusion: non_null
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: hapi-fhir
+              uri: ${cadmin.fhir.uri}
+              predicates:
+                - Path=/fhir/**
+              filters:
+                - RemoveRequestHeader=Cookie
+
+server:
+  port: ${CADMIN_PORT:8080}
+
+cadmin:
+  security:
+    mode: local
+    users:
+      - username: admin
+        password: admin
+        roles:
+          - ADMIN
+          - USER
+      - username: clinician
+        password: clinician
+        roles:
+          - USER
+  fhir:
+    uri: ${CADMIN_FHIR_URI:http://localhost:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Cadmin SPA gateway and FHIR proxy
+
+logging:
+  level:
+    io.cadmin: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.web.server: DEBUG
+    org.springframework.http.server.reactive: DEBUG
+    reactor.netty.http.server: DEBUG

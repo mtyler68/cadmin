@@ -1,0 +1,110 @@
+{
+  "id": "cadmin",
+  "realm": "cadmin",
+  "displayName": "Cadmin",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Cadmin administrator"
+      },
+      {
+        "name": "user",
+        "description": "Cadmin user"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "cadmin-gateway",
+      "name": "Cadmin Gateway",
+      "description": "Spring Cloud Gateway BFF for the Cadmin SPA",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "cadmin-gateway-secret",
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "http://localhost:8080/login/oauth2/code/keycloak",
+        "http://localhost:8080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8080"
+      ],
+      "rootUrl": "http://localhost:8080",
+      "baseUrl": "http://localhost:8080",
+      "adminUrl": "http://localhost:8080",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:8080/*",
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "basic"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Cadmin",
+      "lastName": "Admin",
+      "email": "admin@cadmin.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin",
+        "user"
+      ]
+    },
+    {
+      "username": "clinician",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Cadmin",
+      "lastName": "Clinician",
+      "email": "clinician@cadmin.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "clinician",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user"
+      ]
+    }
+  ]
+}

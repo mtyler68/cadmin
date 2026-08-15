@@ -1,0 +1,49 @@
+name: cadmin-fhir
+
+services:
+  hapi-fhir-postgres:
+    image: postgres:16-alpine
+    container_name: cadmin-hapi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hapi
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - hapi-fhir-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d hapi"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+
+  hapi-fhir:
+    image: hapiproject/hapi:latest
+    container_name: cadmin-hapi-fhir
+    restart: unless-stopped
+    depends_on:
+      hapi-fhir-postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://hapi-fhir-postgres:5432/hapi
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin
+      SPRING_DATASOURCE_DRIVERCLASSNAME: org.postgresql.Driver
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
+      SPRING_JPA_PROPERTIES_HIBERNATE_SEARCH_ENABLED: "false"
+    volumes:
+      - ./hapi.application.yaml:/app/config/application.yaml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/fhir/metadata >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 90s
+
+volumes:
+  hapi-fhir-postgres:

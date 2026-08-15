@@ -1,0 +1,7 @@
+# Starts Keycloak and HAPI FHIR backing stacks together.
+# Run the gateway on the host: ./mvnw spring-boot:run
+# OIDC mode: ./mvnw spring-boot:run -Dspring-boot.run.profiles=oidc
+
+include:
+  - path: docker/fhir/compose.yml
+  - path: docker/keycloak/compose.yml
