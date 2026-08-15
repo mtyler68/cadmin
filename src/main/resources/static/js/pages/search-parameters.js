@@ -22,7 +22,8 @@ CadminApp.register("search-parameters", function (params) {
         "Encounter", "Observation", "Condition", "Procedure", "AllergyIntolerance",
         "MedicationRequest", "DiagnosticReport", "DocumentReference", "Library",
         "SearchParameter", "Questionnaire", "ValueSet", "CodeSystem", "Appointment",
-        "Coverage", "Device", "Group", "HealthcareService", "RelatedPerson", "Task"
+        "Coverage", "Device", "DeviceAssociation", "CareTeam", "Group", "HealthcareService",
+        "RelatedPerson", "Task"
     ];
     const $root = $("#app-content");
     $root.html(
@@ -174,10 +175,10 @@ CadminApp.register("search-parameters", function (params) {
             if (modal) {
                 modal.hide();
             }
-            CadminApi.showAlert("#search-parameter-alert", "success", "Search parameter created.");
+            CadminApi.showToast("success", "Search parameter created.");
             load($("#search-parameter-query").val());
         }).fail(function (xhr) {
-            CadminApi.showAlert("#search-parameter-alert", "danger", "Create failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
         });
     });
 

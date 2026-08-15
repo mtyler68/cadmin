@@ -193,7 +193,7 @@ function renderPractitionerList(initialQuery) {
 
     function afterPractitionerCreated(id, name) {
         hideModal("create-practitioner-modal", function () {
-            CadminApi.showAlert("#practitioner-alert", "success", "Practitioner created.");
+            CadminApi.showToast("success", "Practitioner created.");
             load($("#practitioner-query").val());
             if (CadminApp.isAdmin() && id) {
                 offerPractitionerRole({ id: id, name: name });
@@ -259,7 +259,7 @@ function renderPractitionerList(initialQuery) {
                 afterPractitionerCreated(id, name);
                 return;
             }
-            CadminApi.showAlert("#practitioner-alert", "danger", "Create failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
         });
     });
 
@@ -277,11 +277,11 @@ function renderPractitionerList(initialQuery) {
         const practitionerId = $("#pr-role-practitioner").val();
         const organizationId = $("#pr-role-org").val();
         if (!practitionerId) {
-            CadminApi.showAlert("#practitioner-alert", "danger", "Practitioner is missing.");
+            CadminApi.showToast("danger", "Practitioner is missing.");
             return;
         }
         if (!organizationId) {
-            CadminApi.showAlert("#practitioner-alert", "danger", "Select an organization.");
+            CadminApi.showToast("danger", "Select an organization.");
             return;
         }
         const role = roleOptions.find(function (option) { return option.code === $("#pr-role-code").val(); });
@@ -315,14 +315,14 @@ function renderPractitionerList(initialQuery) {
         }
         CadminApi.fhir("/PractitionerRole", "POST", resource).done(function () {
             hideModal("create-practitioner-role-modal");
-            CadminApi.showAlert("#practitioner-alert", "success", "Practitioner role created.");
+            CadminApi.showToast("success", "Practitioner role created.");
         }).fail(function (xhr) {
             if (xhr.status >= 200 && xhr.status < 300) {
                 hideModal("create-practitioner-role-modal");
-                CadminApi.showAlert("#practitioner-alert", "success", "Practitioner role created.");
+                CadminApi.showToast("success", "Practitioner role created.");
                 return;
             }
-            CadminApi.showAlert("#practitioner-alert", "danger", "Create practitioner role failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create practitioner role failed (" + xhr.status + ").");
         });
     });
 

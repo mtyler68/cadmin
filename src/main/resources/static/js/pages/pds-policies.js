@@ -341,10 +341,10 @@ function renderPdsPolicyList(initialQuery) {
             if (modal) {
                 modal.hide();
             }
-            CadminApi.showAlert("#pds-policy-alert", "success", "PDS policy created.");
+            CadminApi.showToast("success", "PDS policy created.");
             load($("#pds-policy-query").val());
         }).fail(function (xhr) {
-            CadminApi.showAlert("#pds-policy-alert", "danger", "Create failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
         });
     });
 
@@ -392,10 +392,10 @@ function renderPdsPolicyList(initialQuery) {
                 modal.hide();
             }
             duplicateSource = null;
-            CadminApi.showAlert("#pds-policy-alert", "success", "PDS policy duplicated as draft " + newVersion + ".");
+            CadminApi.showToast("success", "PDS policy duplicated as draft " + newVersion + ".");
             load($("#pds-policy-query").val());
         }).fail(function (xhr) {
-            CadminApi.showAlert("#dup-alert", "danger", "Duplicate failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Duplicate failed (" + xhr.status + ").");
         });
     });
 

@@ -110,7 +110,7 @@ window.CadminCaregiverDetail = (function () {
     }
 
     function alertMsg(type, message) {
-        CadminApi.showAlert("#cgd-detail-alert", type, message);
+        CadminApi.showToast(type, message);
     }
 
     function fail(action, xhr) {
@@ -219,7 +219,6 @@ window.CadminCaregiverDetail = (function () {
                 '<a class="btn btn-outline-primary" href="#/resources/RelatedPerson/' + encodeURIComponent(caregiver.id) + '">' +
                     '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
             "</div>" +
-            '<div id="cgd-detail-alert" class="alert d-none"></div>' +
             '<div class="row">' +
                 '<div class="col-lg-6">' + editCard("Basic details", "cgd-basic-details", "#cgd-basic-modal") + "</div>" +
                 '<div class="col-lg-6">' + card("Identifiers", "cgd-id-rows",
@@ -425,14 +424,14 @@ window.CadminCaregiverDetail = (function () {
             }
         };
         if (role) {
-            participant.role = [{
+            participant.role = {
                 coding: [{
                     system: "http://terminology.hl7.org/CodeSystem/v3-RoleCode",
                     code: role.code,
                     display: role.display
                 }],
                 text: role.display
-            }];
+            };
         }
         return participant;
     }

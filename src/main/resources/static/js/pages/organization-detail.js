@@ -47,6 +47,8 @@ window.CadminOrganizationDetail = (function () {
     ];
 
     let org = null;
+    let editingRole = null;
+    let rolesById = {};
 
     function esc(value) {
         return CadminApi.escapeHtml(value);
@@ -61,7 +63,7 @@ window.CadminOrganizationDetail = (function () {
         if (!item) {
             return "—";
         }
-        const coding = (item.coding && item.coding[0]) || {};
+        const coding = (item.coding && item.coding[0]) || item;
         return item.text || coding.display || coding.code || "—";
     }
 
@@ -97,6 +99,55 @@ window.CadminOrganizationDetail = (function () {
         }).filter(Boolean).join(" · ") || "—";
     }
 
+    function contactNameList(contact) {
+        if (!contact || !contact.name) {
+            return [];
+        }
+        return Array.isArray(contact.name) ? contact.name : [contact.name];
+    }
+
+    function contactNameLabel(contact) {
+        const names = contactNameList(contact);
+        return names.length ? personName({ name: names }) : "—";
+    }
+
+    function orgTelecomList() {
+        const list = [];
+        (org.contact || []).forEach(function (contact) {
+            (contact.telecom || []).forEach(function (item) {
+                list.push(item);
+            });
+        });
+        return list;
+    }
+
+    function orgAddress() {
+        const contact = (org.contact || []).find(function (item) { return item.address; });
+        return contact ? contact.address : null;
+    }
+
+    function directoryContact() {
+        org.contact = org.contact || [];
+        let found = org.contact.find(function (contact) {
+            return !contact.purpose && !contactNameList(contact).length;
+        });
+        if (!found) {
+            found = {};
+            org.contact.unshift(found);
+        }
+        return found;
+    }
+
+    function pruneContacts() {
+        org.contact = (org.contact || []).filter(function (contact) {
+            return (contact.telecom && contact.telecom.length) || contact.address
+                || contact.purpose || contactNameList(contact).length;
+        });
+        if (!org.contact.length) {
+            delete org.contact;
+        }
+    }
+
     function statusBadge(active) {
         return active
             ? '<span class="badge text-bg-success">Active</span>'
@@ -121,14 +172,23 @@ window.CadminOrganizationDetail = (function () {
     }
 
     function hideModal(id) {
-        const modal = bootstrap.Modal.getInstance(document.getElementById(id));
-        if (modal) {
-            modal.hide();
+        const el = document.getElementById(id);
+        const instance = el ? bootstrap.Modal.getInstance(el) : null;
+        if (instance) {
+            instance.hide();
         }
     }
 
+    function showModal(id) {
+        const el = document.getElementById(id);
+        if (!el) {
+            return;
+        }
+        bootstrap.Modal.getOrCreateInstance(el).show();
+    }
+
     function alertMsg(type, message) {
-        CadminApi.showAlert("#org-detail-alert", type, message);
+        CadminApi.showToast(type, message);
     }
 
     function fail(action, xhr) {
@@ -215,7 +275,6 @@ window.CadminOrganizationDetail = (function () {
                 '<a class="btn btn-outline-primary" href="#/resources/Organization/' + encodeURIComponent(org.id) + '">' +
                     '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
             "</div>" +
-            '<div id="org-detail-alert" class="alert d-none"></div>' +
             editCard("Basic details", "org-basic-details", "#od-basic-modal") +
             '<div class="row">' +
                 '<div class="col-lg-6">' + card("Sub-organizations", "org-child-rows",
@@ -289,7 +348,14 @@ window.CadminOrganizationDetail = (function () {
                 '<div class="row"><div class="col-md-6 mb-3"><label class="form-label">Family name</label><input class="form-control" id="od-pr-family"></div>' +
                 '<div class="col-md-6 mb-3"><label class="form-label">Given name</label><input class="form-control" id="od-pr-given"></div></div>' +
                 field("Role", '<select class="form-select" id="od-pr-role">' + optionsHtml(practitionerRoles, "code", "display") + "</select>"),
-                "od-role-form")
+                "od-role-form") +
+            modal("od-role-edit-modal", "Edit practitioner role",
+                field("Practitioner", '<input class="form-control" id="od-pr-edit-name" readonly>') +
+                field("Location", '<select class="form-select" id="od-pr-edit-loc"><option value="">None</option></select>') +
+                field("Role", '<select class="form-select" id="od-pr-edit-role">' + optionsHtml(practitionerRoles, "code", "display") + "</select>") +
+                '<div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="od-pr-edit-active">' +
+                    '<label class="form-check-label" for="od-pr-edit-active">Active</label></div>',
+                "od-role-edit-form")
         );
 
         renderBasics();
@@ -315,6 +381,10 @@ window.CadminOrganizationDetail = (function () {
         $("#od-role-modal").on("show.bs.modal", function () {
             fillSelect("#od-pr-practitioner", "/Practitioner?_count=200&_sort=name", personName);
         });
+        $("#od-role-edit-modal").on("show.bs.modal", populateRoleEditForm);
+        $("#od-role-edit-modal").on("hidden.bs.modal", function () {
+            editingRole = null;
+        });
     }
 
     function renderBasics() {
@@ -336,8 +406,8 @@ window.CadminOrganizationDetail = (function () {
                 '<dt class="col-sm-3">Part of</dt><dd class="col-sm-9">' + partOf + "</dd>" +
                 '<dt class="col-sm-3">Alias</dt><dd class="col-sm-9">' + esc(aliases) + "</dd>" +
                 '<dt class="col-sm-3">Identifier</dt><dd class="col-sm-9">' + esc(identifiers) + "</dd>" +
-                '<dt class="col-sm-3">Telecom</dt><dd class="col-sm-9">' + esc(formatTelecom(org.telecom)) + "</dd>" +
-                '<dt class="col-sm-3">Address</dt><dd class="col-sm-9">' + esc(formatAddress((org.address || [])[0])) + "</dd>" +
+                '<dt class="col-sm-3">Telecom</dt><dd class="col-sm-9">' + esc(formatTelecom(orgTelecomList())) + "</dd>" +
+                '<dt class="col-sm-3">Address</dt><dd class="col-sm-9">' + esc(formatAddress(orgAddress())) + "</dd>" +
                 '<dt class="col-sm-3">ID</dt><dd class="col-sm-9"><code>' + esc(org.id) + "</code></dd>" +
             "</dl>"
         );
@@ -457,7 +527,7 @@ window.CadminOrganizationDetail = (function () {
         $("#org-contact-rows").html(contacts.map(function (contact, index) {
             return "<tr>" +
                 "<td>" + esc(conceptLabel(contact.purpose)) + "</td>" +
-                "<td>" + esc(personName({ name: contact.name ? [contact.name] : [] })) + "</td>" +
+                "<td>" + esc(contactNameLabel(contact)) + "</td>" +
                 "<td>" + esc(formatTelecom(contact.telecom)) + "</td>" +
                 '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove-contact="' +
                     index + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td>' +
@@ -465,16 +535,105 @@ window.CadminOrganizationDetail = (function () {
         }).join(""));
     }
 
+    function roleCoding(option) {
+        if (!option || !option.code) {
+            return undefined;
+        }
+        return [{
+            coding: [{
+                system: "http://terminology.hl7.org/CodeSystem/practitioner-role",
+                code: option.code,
+                display: option.display
+            }]
+        }];
+    }
+
+    function ensureRoleOption(selector, code, label) {
+        const $select = $(selector);
+        if (code && !$select.find('option[value="' + code + '"]').length) {
+            $select.append('<option value="' + esc(code) + '">' + esc(label || code) + "</option>");
+        }
+        if (code) {
+            $select.val(code);
+        }
+    }
+
+    function populateRoleEditForm() {
+        const role = editingRole;
+        if (!role) {
+            return;
+        }
+        $("#od-pr-edit-name").val(refLabel(role.practitioner) || "—");
+        const locId = refId((role.location || [])[0]);
+        const locLabel = refLabel((role.location || [])[0]);
+        const $loc = $("#od-pr-edit-loc");
+        CadminApi.fhir("/Location?organization=" + encodeURIComponent(org.id) +
+            "&_count=200&_sort=name").done(function (bundle) {
+            const options = ['<option value="">None</option>'].concat(bundleResources(bundle).map(function (resource) {
+                return '<option value="' + esc(resource.id) + '">' + esc(resource.name || resource.id) + "</option>";
+            }));
+            $loc.html(options.join(""));
+            if (locId && !$loc.find('option[value="' + locId + '"]').length) {
+                $loc.append('<option value="' + esc(locId) + '">' + esc(locLabel || locId) + "</option>");
+            }
+            if (locId) {
+                $loc.val(locId);
+            }
+        });
+        const code = currentCode(role.code);
+        ensureRoleOption("#od-pr-edit-role", code || practitionerRoles[0].code,
+            role.code ? conceptLabel(role.code) : "");
+        $("#od-pr-edit-active").prop("checked", role.active !== false);
+    }
+
+    function openRoleEditor(role) {
+        editingRole = role;
+        showModal("od-role-edit-modal");
+    }
+
+    function applyRoleEditFields(resource, locationId, roleOption, active) {
+        resource.active = active;
+        resource.organization = {
+            reference: "Organization/" + org.id,
+            display: org.name
+        };
+        if (locationId) {
+            resource.location = [{
+                reference: "Location/" + locationId,
+                display: $("#od-pr-edit-loc option:selected").text()
+            }];
+        } else {
+            delete resource.location;
+        }
+        const coding = roleCoding(roleOption);
+        if (coding) {
+            resource.code = coding;
+        } else if (!roleOption) {
+            delete resource.code;
+        }
+        return resource;
+    }
+
     function loadRoles() {
         CadminApi.fhir("/PractitionerRole?organization=" + encodeURIComponent(org.id) +
-            "&_include=PractitionerRole:practitioner&_count=50").done(function (bundle) {
+            "&_include=PractitionerRole:practitioner&_include=PractitionerRole:location&_count=50")
+            .done(function (bundle) {
             const practitioners = {};
             const roles = [];
+            rolesById = {};
             bundleResources(bundle).forEach(function (resource) {
                 if (resource.resourceType === "Practitioner") {
                     practitioners[resource.id] = resource;
                 } else if (resource.resourceType === "PractitionerRole") {
                     roles.push(resource);
+                    rolesById[resource.id] = resource;
+                }
+            });
+            roles.forEach(function (role) {
+                const included = practitioners[refId(role.practitioner)];
+                if (included) {
+                    role.practitioner = role.practitioner || {};
+                    role.practitioner.display = personName(included);
                 }
             });
             if (!roles.length) {
@@ -492,7 +651,10 @@ window.CadminOrganizationDetail = (function () {
                     "<td>" + nameHtml + "</td>" +
                     "<td>" + esc(conceptLabel(role.code)) + "</td>" +
                     "<td>" + statusBadge(role.active !== false) + "</td>" +
-                    '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-delete="/PractitionerRole/' +
+                    '<td class="text-end">' +
+                    '<button class="btn btn-sm btn-outline-primary me-1" type="button" data-edit-role="' +
+                        esc(role.id) + '" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>' +
+                    '<button class="btn btn-sm btn-outline-danger" type="button" data-delete="/PractitionerRole/' +
                         encodeURIComponent(role.id) + '" data-reload="roles" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td>' +
                     "</tr>";
             }).join(""));
@@ -515,6 +677,8 @@ window.CadminOrganizationDetail = (function () {
     }
 
     function saveOrg(next) {
+        delete org.telecom;
+        delete org.address;
         CadminApi.fhir("/Organization/" + encodeURIComponent(org.id), "PUT", org).done(function (updated) {
             org = updated || org;
             renderBasics();
@@ -532,23 +696,22 @@ window.CadminOrganizationDetail = (function () {
     }
 
     function telecomValue(system) {
-        const item = (org.telecom || []).find(function (entry) { return entry.system === system; });
+        const item = orgTelecomList().find(function (entry) { return entry.system === system; });
         return item && item.value ? item.value : "";
     }
 
     function setTelecom(system, value) {
-        org.telecom = (org.telecom || []).filter(function (entry) { return entry.system !== system; });
+        const contact = directoryContact();
+        contact.telecom = (contact.telecom || []).filter(function (entry) { return entry.system !== system; });
         if (value) {
-            org.telecom.push({ system: system, value: value });
+            contact.telecom.push({ system: system, value: value });
         }
-        if (!org.telecom.length) {
-            delete org.telecom;
-        }
+        pruneContacts();
     }
 
     function populateBasicForm() {
         const identifier = (org.identifier && org.identifier[0]) || {};
-        const address = (org.address && org.address[0]) || {};
+        const address = orgAddress() || {};
         const typeCode = currentCode(org.type);
         $("#od-name").val(org.name || "");
         $("#od-active").prop("checked", org.active !== false);
@@ -571,6 +734,20 @@ window.CadminOrganizationDetail = (function () {
     function bindForms() {
         const $root = $("#app-content");
         $root.off(".orgdetail");
+
+        $root.on("click.orgdetail", "[data-edit-role]", function () {
+            const id = $(this).attr("data-edit-role");
+            const role = rolesById[id];
+            if (role) {
+                openRoleEditor(role);
+                return;
+            }
+            CadminApi.fhir("/PractitionerRole/" + encodeURIComponent(id)).done(function (resource) {
+                openRoleEditor(resource);
+            }).fail(function (xhr) {
+                fail("Load role", xhr);
+            });
+        });
 
         $root.on("click.orgdetail", "[data-delete]", function () {
             const path = $(this).attr("data-delete");
@@ -681,13 +858,14 @@ window.CadminOrganizationDetail = (function () {
                 address.country = country;
             }
             if (Object.keys(address).length) {
-                org.address = [address].concat((org.address || []).slice(1));
-            } else if (org.address && org.address.length) {
-                org.address = org.address.slice(1);
-                if (!org.address.length) {
-                    delete org.address;
+                directoryContact().address = address;
+            } else {
+                const existing = (org.contact || []).find(function (item) { return item.address; });
+                if (existing) {
+                    delete existing.address;
                 }
             }
+            pruneContacts();
             saveOrg(function () {
                 hideModal("od-basic-modal");
                 alertMsg("success", "Basic details updated.");
@@ -790,16 +968,20 @@ window.CadminOrganizationDetail = (function () {
                 status: $("#od-ep-status").val() || "active",
                 name: $("#od-ep-name").val(),
                 address: $("#od-ep-address").val(),
-                connectionType: {
-                    system: "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
-                    code: conn ? conn.code : "hl7-fhir-rest",
-                    display: conn ? conn.display : "HL7 FHIR REST"
-                },
-                payloadType: [{
+                connectionType: [{
                     coding: [{
-                        system: "http://terminology.hl7.org/CodeSystem/endpoint-payload-type",
-                        code: "any",
-                        display: "Any"
+                        system: "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
+                        code: conn ? conn.code : "hl7-fhir-rest",
+                        display: conn ? conn.display : "HL7 FHIR REST"
+                    }]
+                }],
+                payload: [{
+                    type: [{
+                        coding: [{
+                            system: "http://terminology.hl7.org/CodeSystem/endpoint-payload-type",
+                            code: "any",
+                            display: "Any"
+                        }]
                     }]
                 }],
                 managingOrganization: { reference: "Organization/" + org.id, display: org.name }
@@ -823,10 +1005,13 @@ window.CadminOrganizationDetail = (function () {
         $("#od-contact-form").on("submit", function (event) {
             event.preventDefault();
             const purpose = contactPurposes.find(function (item) { return item.code === $("#od-ct-purpose").val(); });
+            const contactName = $("#od-ct-name").val().trim();
             const contact = {
-                name: { text: $("#od-ct-name").val() },
                 telecom: []
             };
+            if (contactName) {
+                contact.name = [{ text: contactName }];
+            }
             if (purpose) {
                 contact.purpose = {
                     coding: [{
@@ -901,6 +1086,28 @@ window.CadminOrganizationDetail = (function () {
             }).fail(function (xhr) {
                 fail("Create practitioner", xhr);
             });
+        });
+
+        $("#od-role-edit-form").on("submit", function (event) {
+            event.preventDefault();
+            if (!editingRole || !editingRole.id) {
+                return;
+            }
+            const roleOption = practitionerRoles.find(function (item) {
+                return item.code === $("#od-pr-edit-role").val();
+            }) || ($("#od-pr-edit-role").val()
+                ? { code: $("#od-pr-edit-role").val(), display: $("#od-pr-edit-role option:selected").text() }
+                : null);
+            const resource = applyRoleEditFields($.extend(true, {}, editingRole),
+                $("#od-pr-edit-loc").val(), roleOption, $("#od-pr-edit-active").is(":checked"));
+            CadminApi.fhir("/PractitionerRole/" + encodeURIComponent(editingRole.id), "PUT", resource)
+                .done(function () {
+                    hideModal("od-role-edit-modal");
+                    alertMsg("success", "Practitioner role updated.");
+                    loadRoles();
+                }).fail(function (xhr) {
+                    fail("Update practitioner role", xhr);
+                });
         });
     }
 

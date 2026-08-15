@@ -209,10 +209,10 @@ CadminApp.register("care-teams", function (params) {
             if (modal) {
                 modal.hide();
             }
-            CadminApi.showAlert("#care-team-alert", "success", "Care team created.");
+            CadminApi.showToast("success", "Care team created.");
             load($("#care-team-query").val());
         }).fail(function (xhr) {
-            CadminApi.showAlert("#care-team-alert", "danger", "Create failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
         });
     });
 

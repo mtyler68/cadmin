@@ -90,6 +90,42 @@ window.CadminApi = (function ($) {
             .text(message);
     }
 
+    function showToast(type, message) {
+        if (!message || typeof bootstrap === "undefined") {
+            return;
+        }
+        let container = document.getElementById("cadmin-toasts");
+        if (!container) {
+            container = document.createElement("div");
+            container.id = "cadmin-toasts";
+            container.className = "toast-container position-fixed p-3";
+            container.setAttribute("aria-live", "polite");
+            container.setAttribute("aria-atomic", "false");
+            document.body.appendChild(container);
+        }
+        const danger = type === "danger";
+        const light = type === "warning" || type === "info";
+        const toastEl = document.createElement("div");
+        toastEl.className = "toast align-items-center text-bg-" + type + " border-0 shadow";
+        toastEl.setAttribute("role", danger ? "alert" : "status");
+        toastEl.setAttribute("aria-live", danger ? "assertive" : "polite");
+        toastEl.setAttribute("aria-atomic", "true");
+        toastEl.innerHTML = '<div class="d-flex">' +
+            '<div class="toast-body">' + escapeHtml(message) + "</div>" +
+            '<button type="button" class="btn-close ' + (light ? "" : "btn-close-white ") +
+                'me-2 m-auto" data-bs-dismiss="toast" aria-label="Dismiss"></button>' +
+            "</div>";
+        container.appendChild(toastEl);
+        const toast = new bootstrap.Toast(toastEl, {
+            autohide: true,
+            delay: danger ? 8000 : 5000
+        });
+        toastEl.addEventListener("hidden.bs.toast", function () {
+            toastEl.remove();
+        });
+        toast.show();
+    }
+
     function escapeHtml(value) {
         return $("<div>").text(value == null ? "" : String(value)).html();
     }
@@ -102,6 +138,7 @@ window.CadminApi = (function ($) {
         logout: logout,
         fhir: fhir,
         showAlert: showAlert,
+        showToast: showToast,
         escapeHtml: escapeHtml
     };
 }(jQuery));

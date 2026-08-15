@@ -11,7 +11,8 @@ spring:
 
 hapi:
   fhir:
-    fhir_version: R4
+    # Recreate the Postgres volume after changing fhir_version.
+    fhir_version: R5
     openapi_enabled: true
     cors:
       allow_Credentials: true

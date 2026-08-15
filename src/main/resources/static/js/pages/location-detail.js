@@ -74,7 +74,7 @@ window.CadminLocationDetail = (function () {
         if (!item) {
             return "—";
         }
-        const coding = (item.coding && item.coding[0]) || {};
+        const coding = (item.coding && item.coding[0]) || item;
         return item.text || coding.display || coding.code || "—";
     }
 
@@ -119,14 +119,18 @@ window.CadminLocationDetail = (function () {
         }).join(", ");
     }
 
-    function formatHours(hours) {
-        const days = (hours.daysOfWeek || []).join(", ") || "—";
-        if (hours.allDay) {
-            return days + " · all day";
+    function hoursSlot(availability) {
+        return (availability && availability.availableTime && availability.availableTime[0]) || availability || {};
+    }
+
+    function formatHours(availability) {
+        const slot = hoursSlot(availability);
+        if (slot.allDay) {
+            return "all day";
         }
-        const open = hours.openingTime || "";
-        const close = hours.closingTime || "";
-        return days + (open || close ? " · " + open + "–" + close : "");
+        const open = slot.availableStartTime || slot.openingTime || "";
+        const close = slot.availableEndTime || slot.closingTime || "";
+        return (open || close) ? open + "–" + close : "—";
     }
 
     function codeStatusBadge(status) {
@@ -152,7 +156,7 @@ window.CadminLocationDetail = (function () {
     }
 
     function alertMsg(type, message) {
-        CadminApi.showAlert("#loc-detail-alert", type, message);
+        CadminApi.showToast(type, message);
     }
 
     function fail(action, xhr) {
@@ -253,7 +257,6 @@ window.CadminLocationDetail = (function () {
                 '<a class="btn btn-outline-primary" href="#/resources/Location/' + encodeURIComponent(loc.id) + '">' +
                     '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
             "</div>" +
-            '<div id="loc-detail-alert" class="alert d-none"></div>' +
             '<div class="row">' +
                 '<div class="col-lg-6">' + editCard("Basic details", "loc-basic-details", "#ld-basic-modal") + "</div>" +
                 '<div class="col-lg-6">' + editCard("Address and position", "loc-address-details", "#ld-address-modal") + "</div>" +
@@ -282,8 +285,7 @@ window.CadminLocationDetail = (function () {
                 field("Physical type", '<select class="form-select" id="ld-physical">' + optionsHtml(physicalTypes) + "</select>") +
                 field("Service type", '<select class="form-select" id="ld-type">' + optionsHtml(serviceTypes) + "</select>") +
                 field("Description", '<textarea class="form-control" id="ld-description" rows="2"></textarea>') +
-                field("Alias", '<input class="form-control" id="ld-alias" placeholder="Comma-separated">') +
-                field("Availability exceptions", '<input class="form-control" id="ld-exceptions">'),
+                field("Alias", '<input class="form-control" id="ld-alias" placeholder="Comma-separated">'),
                 "ld-basic-form") +
             modal("ld-address-modal", "Edit address and position",
                 field("Street", '<input class="form-control" id="ld-line">') +
@@ -364,11 +366,10 @@ window.CadminLocationDetail = (function () {
                 '<dt class="col-sm-4">Name</dt><dd class="col-sm-8">' + esc(loc.name || "—") + "</dd>" +
                 '<dt class="col-sm-4">Status</dt><dd class="col-sm-8">' + codeStatusBadge(loc.status) + "</dd>" +
                 '<dt class="col-sm-4">Mode</dt><dd class="col-sm-8">' + esc(loc.mode || "—") + "</dd>" +
-                '<dt class="col-sm-4">Physical type</dt><dd class="col-sm-8">' + esc(conceptLabel(loc.physicalType)) + "</dd>" +
+                '<dt class="col-sm-4">Physical type</dt><dd class="col-sm-8">' + esc(conceptLabel(loc.form || loc.physicalType)) + "</dd>" +
                 '<dt class="col-sm-4">Service type</dt><dd class="col-sm-8">' + esc(conceptLabel(loc.type)) + "</dd>" +
                 '<dt class="col-sm-4">Description</dt><dd class="col-sm-8">' + esc(loc.description || "—") + "</dd>" +
                 '<dt class="col-sm-4">Alias</dt><dd class="col-sm-8">' + esc((loc.alias || []).join(", ") || "—") + "</dd>" +
-                '<dt class="col-sm-4">Exceptions</dt><dd class="col-sm-8">' + esc(loc.availabilityExceptions || "—") + "</dd>" +
                 '<dt class="col-sm-4">ID</dt><dd class="col-sm-8"><code>' + esc(loc.id) + "</code></dd>" +
             "</dl>"
         );
@@ -400,16 +401,26 @@ window.CadminLocationDetail = (function () {
         );
     }
 
+    function locationTelecoms() {
+        const list = [];
+        (loc.contact || []).forEach(function (contact, index) {
+            (contact.telecom || []).forEach(function (item) {
+                list.push({ index: index, item: item });
+            });
+        });
+        return list;
+    }
+
     function renderContacts() {
-        const telecom = loc.telecom || [];
+        const telecom = locationTelecoms();
         if (!telecom.length) {
             $("#loc-contact-rows").html(emptyRow(3, "No contacts."));
             return;
         }
-        $("#loc-contact-rows").html(telecom.map(function (item, index) {
-            return "<tr><td>" + esc(item.system || "—") + "</td><td>" + esc(item.value || "—") + "</td>" +
-                '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove-telecom="' +
-                index + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
+        $("#loc-contact-rows").html(telecom.map(function (entry) {
+            return "<tr><td>" + esc(entry.item.system || "—") + "</td><td>" + esc(entry.item.value || "—") + "</td>" +
+                '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove-contact="' +
+                entry.index + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
         }).join(""));
     }
 
@@ -420,7 +431,8 @@ window.CadminLocationDetail = (function () {
             return;
         }
         $("#loc-hours-rows").html(hours.map(function (item, index) {
-            return "<tr><td>" + esc((item.daysOfWeek || []).join(", ") || "—") + "</td><td>" +
+            const slot = hoursSlot(item);
+            return "<tr><td>" + esc((slot.daysOfWeek || []).join(", ") || "—") + "</td><td>" +
                 esc(formatHours(item)) + "</td>" +
                 '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove-hours="' +
                 index + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
@@ -437,7 +449,7 @@ window.CadminLocationDetail = (function () {
             $("#loc-child-rows").html(rows.map(function (child) {
                 return "<tr>" +
                     '<td><a href="#/locations/' + encodeURIComponent(child.id) + '">' + esc(child.name || child.id) + "</a></td>" +
-                    "<td>" + esc(conceptLabel(child.physicalType)) + "</td>" +
+                    "<td>" + esc(conceptLabel(child.form || child.physicalType)) + "</td>" +
                     "<td>" + codeStatusBadge(child.status) + "</td>" +
                     '<td class="text-end"><button class="btn btn-sm btn-outline-secondary" type="button" data-unlink-loc="' +
                         esc(child.id) + '">Unlink</button></td></tr>';
@@ -509,6 +521,9 @@ window.CadminLocationDetail = (function () {
     }
 
     function saveLoc(next) {
+        delete loc.telecom;
+        delete loc.physicalType;
+        delete loc.availabilityExceptions;
         CadminApi.fhir("/Location/" + encodeURIComponent(loc.id), "PUT", loc).done(function (updated) {
             loc = updated;
             renderBasics();
@@ -528,11 +543,10 @@ window.CadminLocationDetail = (function () {
         $("#ld-name").val(loc.name || "");
         $("#ld-status").val(loc.status || "active");
         $("#ld-mode").val(loc.mode || "");
-        $("#ld-physical").val(currentCode(loc.physicalType));
+        $("#ld-physical").val(currentCode(loc.form || loc.physicalType));
         $("#ld-type").val(currentCode(loc.type));
         $("#ld-description").val(loc.description || "");
         $("#ld-alias").val((loc.alias || []).join(", "));
-        $("#ld-exceptions").val(loc.availabilityExceptions || "");
     }
 
     function populateAddressForm() {
@@ -599,9 +613,12 @@ window.CadminLocationDetail = (function () {
             });
         });
 
-        $root.on("click.locdetail", "[data-remove-telecom]", function () {
-            const index = Number($(this).attr("data-remove-telecom"));
-            loc.telecom = (loc.telecom || []).filter(function (_item, i) { return i !== index; });
+        $root.on("click.locdetail", "[data-remove-contact]", function () {
+            const index = Number($(this).attr("data-remove-contact"));
+            loc.contact = (loc.contact || []).filter(function (_item, i) { return i !== index; });
+            if (!loc.contact.length) {
+                delete loc.contact;
+            }
             saveLoc(function () {
                 alertMsg("success", "Contact removed.");
             });
@@ -628,9 +645,9 @@ window.CadminLocationDetail = (function () {
             const physical = coding("http://terminology.hl7.org/CodeSystem/location-physical-type",
                 findOption(physicalTypes, $("#ld-physical").val()));
             if (physical) {
-                loc.physicalType = physical;
+                loc.form = physical;
             } else {
-                delete loc.physicalType;
+                delete loc.form;
             }
             const service = coding("http://terminology.hl7.org/CodeSystem/v3-RoleCode",
                 findOption(serviceTypes, $("#ld-type").val()));
@@ -650,12 +667,6 @@ window.CadminLocationDetail = (function () {
                 loc.alias = alias;
             } else {
                 delete loc.alias;
-            }
-            const exceptions = $("#ld-exceptions").val();
-            if (exceptions) {
-                loc.availabilityExceptions = exceptions;
-            } else {
-                delete loc.availabilityExceptions;
             }
             saveLoc(function () {
                 hideModal("ld-basic-modal");
@@ -733,10 +744,12 @@ window.CadminLocationDetail = (function () {
 
         $("#ld-contact-form").on("submit", function (event) {
             event.preventDefault();
-            loc.telecom = loc.telecom || [];
-            loc.telecom.push({
-                system: $("#ld-tel-system").val(),
-                value: $("#ld-tel-value").val()
+            loc.contact = loc.contact || [];
+            loc.contact.push({
+                telecom: [{
+                    system: $("#ld-tel-system").val(),
+                    value: $("#ld-tel-value").val()
+                }]
             });
             saveLoc(function () {
                 hideModal("ld-contact-modal");
@@ -758,7 +771,7 @@ window.CadminLocationDetail = (function () {
             const physical = coding("http://terminology.hl7.org/CodeSystem/location-physical-type",
                 findOption(physicalTypes, $("#ld-child-physical").val()));
             if (physical) {
-                resource.physicalType = physical;
+                resource.form = physical;
             }
             CadminApi.fhir("/Location", "POST", resource).done(function () {
                 hideModal("ld-child-modal");
@@ -774,21 +787,21 @@ window.CadminLocationDetail = (function () {
             const selectedDays = daysOfWeek.map(function (day) { return day.code; }).filter(function (code) {
                 return $("#ld-day-" + code).is(":checked");
             });
-            const hours = { daysOfWeek: selectedDays };
+            const slot = { daysOfWeek: selectedDays };
             if ($("#ld-hours-allday").is(":checked")) {
-                hours.allDay = true;
+                slot.allDay = true;
             } else {
                 const open = $("#ld-hours-open").val();
                 const close = $("#ld-hours-close").val();
                 if (open) {
-                    hours.openingTime = open + (open.length === 5 ? ":00" : "");
+                    slot.availableStartTime = open + (open.length === 5 ? ":00" : "");
                 }
                 if (close) {
-                    hours.closingTime = close + (close.length === 5 ? ":00" : "");
+                    slot.availableEndTime = close + (close.length === 5 ? ":00" : "");
                 }
             }
             loc.hoursOfOperation = loc.hoursOfOperation || [];
-            loc.hoursOfOperation.push(hours);
+            loc.hoursOfOperation.push({ availableTime: [slot] });
             saveLoc(function () {
                 hideModal("ld-hours-modal");
                 alertMsg("success", "Hours added.");
@@ -803,16 +816,20 @@ window.CadminLocationDetail = (function () {
                 status: "active",
                 name: $("#ld-ep-name").val(),
                 address: $("#ld-ep-address").val(),
-                connectionType: {
-                    system: "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
-                    code: conn ? conn.code : "hl7-fhir-rest",
-                    display: conn ? conn.display : "HL7 FHIR REST"
-                },
-                payloadType: [{
+                connectionType: [{
                     coding: [{
-                        system: "http://terminology.hl7.org/CodeSystem/endpoint-payload-type",
-                        code: "any",
-                        display: "Any"
+                        system: "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
+                        code: conn ? conn.code : "hl7-fhir-rest",
+                        display: conn ? conn.display : "HL7 FHIR REST"
+                    }]
+                }],
+                payload: [{
+                    type: [{
+                        coding: [{
+                            system: "http://terminology.hl7.org/CodeSystem/endpoint-payload-type",
+                            code: "any",
+                            display: "Any"
+                        }]
                     }]
                 }]
             };

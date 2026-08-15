@@ -189,11 +189,11 @@ function renderOrganizationList(initialQuery) {
             if (modal) {
                 modal.hide();
             }
-            CadminApi.showAlert("#organization-alert", "success", "Organization created.");
+            CadminApi.showToast("success", "Organization created.");
             load($("#organization-query").val());
             loadPartOfOptions();
         }).fail(function (xhr) {
-            CadminApi.showAlert("#organization-alert", "danger", "Create failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
         });
     });
 

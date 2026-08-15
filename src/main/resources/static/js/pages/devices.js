@@ -15,8 +15,7 @@ function renderDeviceList(initialQuery) {
     const statusOptions = [
         { code: "active", display: "Active" },
         { code: "inactive", display: "Inactive" },
-        { code: "entered-in-error", display: "Entered in error" },
-        { code: "unknown", display: "Unknown" }
+        { code: "entered-in-error", display: "Entered in error" }
     ];
     const typeOptions = [
         { code: "", display: "Unspecified" },
@@ -115,10 +114,20 @@ function renderDeviceList(initialQuery) {
         return ref.display || (ref.reference || "").replace(/^[^/]+\//, "") || "—";
     }
 
+    function refId(ref) {
+        const match = ((ref && ref.reference) || "").match(/\/([^/]+)$/);
+        return match ? match[1] : "";
+    }
+
+    function nameValue(item) {
+        return (item && (item.value || item.name)) || "";
+    }
+
     function deviceLabel(resource) {
-        const names = resource.deviceName || [];
+        const names = resource.name || resource.deviceName || [];
+        const preferred = names.find(function (item) { return item.display === true; });
         const friendly = names.find(function (item) { return item.type === "user-friendly-name"; });
-        const named = (friendly || names[0] || {}).name;
+        const named = nameValue(preferred || friendly || names[0] || {});
         if (named) {
             return named;
         }
@@ -156,24 +165,51 @@ function renderDeviceList(initialQuery) {
         });
     }
 
+    function createdId(body, xhr, resourceType) {
+        if (body && body.id) {
+            return body.id;
+        }
+        const header = (xhr && (xhr.getResponseHeader("Location") || xhr.getResponseHeader("Content-Location"))) || "";
+        const match = header.match(new RegExp(resourceType + "/([^/?#]+)"));
+        return match ? decodeURIComponent(match[1]) : "";
+    }
+
+    function currentAssociation(resource) {
+        return resource && resource.resourceType === "DeviceAssociation"
+            && resource.status !== "explanted" && resource.status !== "entered-in-error";
+    }
+
     function load(query) {
-        let path = "/Device?_count=50&_sort=-_lastUpdated";
+        let path = "/Device?_count=50&_sort=-_lastUpdated&_revinclude=DeviceAssociation:device";
         if (query) {
             path += "&device-name=" + encodeURIComponent(query);
         }
         CadminApi.fhir(path).done(function (bundle) {
-            const entries = (bundle.entry || []).map(function (e) { return e.resource; }).filter(Boolean);
+            const resources = (bundle.entry || []).map(function (e) { return e.resource; }).filter(Boolean);
+            const associations = {};
+            resources.forEach(function (resource) {
+                if (currentAssociation(resource)) {
+                    const deviceId = refId(resource.device);
+                    if (deviceId) {
+                        associations[deviceId] = resource;
+                    }
+                }
+            });
+            const entries = resources.filter(function (resource) {
+                return resource.resourceType === "Device";
+            });
             if (!entries.length) {
                 $("#device-rows").html('<tr><td colspan="7" class="text-muted">No devices found. Create one or start HAPI FHIR.</td></tr>');
                 return;
             }
             const rows = entries.map(function (device) {
+                const association = associations[device.id];
                 return "<tr>" +
                     "<td>" + CadminApi.escapeHtml(deviceLabel(device)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(conceptLabel(device.type)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(device.manufacturer || "—") + "</td>" +
                     "<td>" + statusBadge(device.status) + "</td>" +
-                    "<td>" + CadminApi.escapeHtml(refLabel(device.patient)) + "</td>" +
+                    "<td>" + CadminApi.escapeHtml(refLabel(association && association.subject)) + "</td>" +
                     "<td><code>" + CadminApi.escapeHtml(device.id) + "</code></td>" +
                     '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="#/devices/' +
                         encodeURIComponent(device.id) + '" title="Open" aria-label="Open"><i class="bi bi-eye"></i></a></td>' +
@@ -194,12 +230,15 @@ function renderDeviceList(initialQuery) {
 
     $("#create-device-form").on("submit", function (event) {
         event.preventDefault();
+        const patientId = $("#dev-patient").val();
+        const patientDisplay = $("#dev-patient option:selected").text();
         const resource = {
             resourceType: "Device",
             status: $("#dev-status").val() || "active",
-            deviceName: [{
-                name: $("#dev-name").val().trim(),
-                type: "user-friendly-name"
+            name: [{
+                value: $("#dev-name").val().trim(),
+                type: "user-friendly-name",
+                display: true
             }]
         };
         const manufacturer = $("#dev-manufacturer").val().trim();
@@ -216,31 +255,43 @@ function renderDeviceList(initialQuery) {
         }
         const type = typeOptions.find(function (option) { return option.code === $("#dev-type").val(); });
         if (type && type.code) {
-            resource.type = {
+            resource.type = [{
                 coding: [{
                     system: "http://snomed.info/sct",
                     code: type.code,
                     display: type.display
                 }],
                 text: type.display
-            };
+            }];
         }
-        const patientId = $("#dev-patient").val();
-        if (patientId) {
-            resource.patient = {
-                reference: "Patient/" + patientId,
-                display: $("#dev-patient option:selected").text()
-            };
-        }
-        CadminApi.fhir("/Device", "POST", resource).done(function () {
+        function finishCreate() {
             const modal = bootstrap.Modal.getInstance(document.getElementById("create-device-modal"));
             if (modal) {
                 modal.hide();
             }
-            CadminApi.showAlert("#device-alert", "success", "Device created.");
+            CadminApi.showToast("success", "Device created.");
             load($("#device-query").val());
+        }
+        CadminApi.fhir("/Device", "POST", resource).done(function (created, _status, xhr) {
+            const id = createdId(created, xhr, "Device");
+            if (patientId && id) {
+                CadminApi.fhir("/DeviceAssociation", "POST", {
+                    resourceType: "DeviceAssociation",
+                    status: "attached",
+                    device: {
+                        reference: "Device/" + id,
+                        display: resource.name[0].value
+                    },
+                    subject: {
+                        reference: "Patient/" + patientId,
+                        display: patientDisplay
+                    }
+                }).always(finishCreate);
+                return;
+            }
+            finishCreate();
         }).fail(function (xhr) {
-            CadminApi.showAlert("#device-alert", "danger", "Create failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
         });
     });
 

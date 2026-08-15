@@ -37,6 +37,8 @@ window.CadminPractitionerDetail = (function () {
     ];
 
     let practitioner = null;
+    let editingRole = null;
+    let rolesById = {};
 
     function esc(value) {
         return CadminApi.escapeHtml(value);
@@ -111,14 +113,23 @@ window.CadminPractitionerDetail = (function () {
     }
 
     function hideModal(id) {
-        const modal = bootstrap.Modal.getInstance(document.getElementById(id));
-        if (modal) {
-            modal.hide();
+        const el = document.getElementById(id);
+        const instance = el ? bootstrap.Modal.getInstance(el) : null;
+        if (instance) {
+            instance.hide();
         }
     }
 
+    function showModal(id) {
+        const el = document.getElementById(id);
+        if (!el) {
+            return;
+        }
+        bootstrap.Modal.getOrCreateInstance(el).show();
+    }
+
     function alertMsg(type, message) {
-        CadminApi.showAlert("#prd-detail-alert", type, message);
+        CadminApi.showToast(type, message);
     }
 
     function fail(action, xhr) {
@@ -143,17 +154,21 @@ window.CadminPractitionerDetail = (function () {
         return match ? decodeURIComponent(match[1]) : "";
     }
 
-    function fillSelect(selector, path, labelFn, placeholder) {
+    function currentCode(cc) {
+        const item = Array.isArray(cc) ? cc[0] : cc;
+        return item && item.coding && item.coding[0] ? item.coding[0].code : "";
+    }
+
+    function fillSelect(selector, path, labelFn, placeholder, selectedId) {
         const $select = $(selector);
-        const previous = $select.val();
         CadminApi.fhir(path).done(function (bundle) {
             const options = ['<option value="">' + esc(placeholder || "None") + "</option>"]
                 .concat(bundleResources(bundle).map(function (resource) {
                     return '<option value="' + esc(resource.id) + '">' + esc(labelFn(resource)) + "</option>";
                 }));
             $select.html(options.join(""));
-            if (previous && $select.find('option[value="' + previous + '"]').length) {
-                $select.val(previous);
+            if (selectedId && $select.find('option[value="' + selectedId + '"]').length) {
+                $select.val(selectedId);
             }
         });
     }
@@ -230,7 +245,6 @@ window.CadminPractitionerDetail = (function () {
                 '<a class="btn btn-outline-primary" href="#/resources/Practitioner/' + encodeURIComponent(practitioner.id) + '">' +
                     '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
             "</div>" +
-            '<div id="prd-detail-alert" class="alert d-none"></div>' +
             '<div class="row">' +
                 '<div class="col-lg-6">' + editCard("Basic details", "prd-basic-details", "#prd-basic-modal") + "</div>" +
                 '<div class="col-lg-6">' + card("Identifiers", "prd-id-rows",
@@ -291,34 +305,34 @@ window.CadminPractitionerDetail = (function () {
             modal("prd-lang-modal", "Add language",
                 field("Language", '<select class="form-select" id="prd-lang">' + optionsHtml(languageOptions) + "</select>"),
                 "prd-lang-form") +
-            (isAdmin()
-                ? modal("prd-role-modal", "Add organization role",
-                    field("Organization", '<select class="form-select" id="prd-role-org" required><option value="">Select…</option></select>') +
-                    field("Location", '<select class="form-select" id="prd-role-loc"><option value="">None</option></select>') +
-                    field("Role", '<select class="form-select" id="prd-role-code">' + optionsHtml(practitionerRoles) + "</select>"),
-                    "prd-role-form") +
-                  modal("prd-team-modal", "Add to care team",
-                    '<div class="mb-3">' +
-                        '<label class="form-label">Membership</label>' +
-                        '<div class="form-check">' +
-                            '<input class="form-check-input" type="radio" name="prd-ct-mode" id="prd-ct-mode-existing" value="existing" checked>' +
-                            '<label class="form-check-label" for="prd-ct-mode-existing">Existing care team</label>' +
-                        "</div>" +
-                        '<div class="form-check">' +
-                            '<input class="form-check-input" type="radio" name="prd-ct-mode" id="prd-ct-mode-new" value="new">' +
-                            '<label class="form-check-label" for="prd-ct-mode-new">New care team</label>' +
-                        "</div>" +
+            modal("prd-role-modal", "Add organization role",
+                field("Organization", '<select class="form-select" id="prd-role-org" required><option value="">Select…</option></select>') +
+                field("Location", '<select class="form-select" id="prd-role-loc"><option value="">None</option></select>') +
+                field("Role", '<select class="form-select" id="prd-role-code">' + optionsHtml(practitionerRoles) + "</select>") +
+                '<div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="prd-role-active" checked>' +
+                    '<label class="form-check-label" for="prd-role-active">Active</label></div>',
+                "prd-role-form") +
+            modal("prd-team-modal", "Add to care team",
+                '<div class="mb-3">' +
+                    '<label class="form-label">Membership</label>' +
+                    '<div class="form-check">' +
+                        '<input class="form-check-input" type="radio" name="prd-ct-mode" id="prd-ct-mode-existing" value="existing" checked>' +
+                        '<label class="form-check-label" for="prd-ct-mode-existing">Existing care team</label>' +
                     "</div>" +
-                    '<div id="prd-ct-existing-wrap">' +
-                        field("Care team", '<select class="form-select" id="prd-ct-team"><option value="">Select…</option></select>') +
+                    '<div class="form-check">' +
+                        '<input class="form-check-input" type="radio" name="prd-ct-mode" id="prd-ct-mode-new" value="new">' +
+                        '<label class="form-check-label" for="prd-ct-mode-new">New care team</label>' +
                     "</div>" +
-                    '<div id="prd-ct-new-wrap" class="d-none">' +
-                        field("Patient", '<select class="form-select" id="prd-ct-patient"><option value="">Select…</option></select>') +
-                        field("Care team name", '<input class="form-control" id="prd-ct-name" placeholder="e.g. Home care team">') +
-                    "</div>" +
-                    field("Role", '<select class="form-select" id="prd-ct-role">' + optionsHtml(practitionerRoles) + "</select>"),
-                    "prd-team-form")
-                : "")
+                "</div>" +
+                '<div id="prd-ct-existing-wrap">' +
+                    field("Care team", '<select class="form-select" id="prd-ct-team"><option value="">Select…</option></select>') +
+                "</div>" +
+                '<div id="prd-ct-new-wrap" class="d-none">' +
+                    field("Patient", '<select class="form-select" id="prd-ct-patient"><option value="">Select…</option></select>') +
+                    field("Care team name", '<input class="form-control" id="prd-ct-name" placeholder="e.g. Home care team">') +
+                "</div>" +
+                field("Role", '<select class="form-select" id="prd-ct-role">' + optionsHtml(practitionerRoles) + "</select>"),
+                "prd-team-form")
         );
 
         renderBasics();
@@ -331,14 +345,8 @@ window.CadminPractitionerDetail = (function () {
         if (isAdmin()) {
             loadRoles();
             loadCareTeams();
-            $("#prd-role-modal").on("show.bs.modal", function () {
-                fillSelect("#prd-role-org", "/Organization?_count=200&_sort=name", function (org) {
-                    return org.name || org.id;
-                });
-                fillSelect("#prd-role-loc", "/Location?_count=200&_sort=name", function (loc) {
-                    return loc.name || loc.id;
-                });
-            });
+            $("#prd-role-modal").on("show.bs.modal", populateRoleForm);
+            $("#prd-role-modal").on("hidden.bs.modal", resetRoleEditor);
             $("#prd-team-modal").on("show.bs.modal", function () {
                 $("#prd-ct-mode-existing").prop("checked", true);
                 toggleCareTeamMode();
@@ -560,16 +568,98 @@ window.CadminPractitionerDetail = (function () {
             }
         };
         if (role) {
-            participant.role = [{
+            participant.role = {
                 coding: [{
                     system: "http://terminology.hl7.org/CodeSystem/practitioner-role",
                     code: role.code,
                     display: role.display
                 }],
                 text: role.display
-            }];
+            };
         }
         return participant;
+    }
+
+    function roleCoding(option) {
+        if (!option || !option.code) {
+            return undefined;
+        }
+        return [{
+            coding: [{
+                system: "http://terminology.hl7.org/CodeSystem/practitioner-role",
+                code: option.code,
+                display: option.display
+            }]
+        }];
+    }
+
+    function ensureRoleOption(selector, code, label) {
+        const $select = $(selector);
+        if (code && !$select.find('option[value="' + code + '"]').length) {
+            $select.append('<option value="' + esc(code) + '">' + esc(label || code) + "</option>");
+        }
+        if (code) {
+            $select.val(code);
+        }
+    }
+
+    function resetRoleEditor() {
+        editingRole = null;
+        $("#prd-role-modal .modal-title").text("Add organization role");
+        $("#prd-role-org").val("");
+        $("#prd-role-loc").val("");
+        $("#prd-role-code").val(practitionerRoles[0].code);
+        $("#prd-role-active").prop("checked", true);
+    }
+
+    function populateRoleForm() {
+        const role = editingRole;
+        $("#prd-role-modal .modal-title").text(role ? "Edit organization role" : "Add organization role");
+        fillSelect("#prd-role-org", "/Organization?_count=200&_sort=name", function (orgItem) {
+            return orgItem.name || orgItem.id;
+        }, "Select…", role ? refId(role.organization) : "");
+        fillSelect("#prd-role-loc", "/Location?_count=200&_sort=name", function (loc) {
+            return loc.name || loc.id;
+        }, "None", role ? refId((role.location || [])[0]) : "");
+        const code = role ? currentCode(role.code) : practitionerRoles[0].code;
+        ensureRoleOption("#prd-role-code", code, role ? conceptLabel(role.code) : "");
+        $("#prd-role-active").prop("checked", !role || role.active !== false);
+    }
+
+    function openRoleEditor(role) {
+        editingRole = role;
+        showModal("prd-role-modal");
+    }
+
+    function applyRoleFields(resource, organizationId, locationId, roleOption, active) {
+        resource.active = active;
+        resource.practitioner = {
+            reference: "Practitioner/" + practitioner.id,
+            display: personName(practitioner)
+        };
+        if (organizationId) {
+            resource.organization = {
+                reference: "Organization/" + organizationId,
+                display: $("#prd-role-org option:selected").text()
+            };
+        } else {
+            delete resource.organization;
+        }
+        if (locationId) {
+            resource.location = [{
+                reference: "Location/" + locationId,
+                display: $("#prd-role-loc option:selected").text()
+            }];
+        } else {
+            delete resource.location;
+        }
+        const coding = roleCoding(roleOption);
+        if (coding) {
+            resource.code = coding;
+        } else if (!roleOption) {
+            delete resource.code;
+        }
+        return resource;
     }
 
     function loadRoles() {
@@ -578,6 +668,7 @@ window.CadminPractitionerDetail = (function () {
             const orgs = {};
             const locs = {};
             const roles = [];
+            rolesById = {};
             bundleResources(bundle).forEach(function (resource) {
                 if (resource.resourceType === "Organization") {
                     orgs[resource.id] = resource;
@@ -585,6 +676,7 @@ window.CadminPractitionerDetail = (function () {
                     locs[resource.id] = resource;
                 } else if (resource.resourceType === "PractitionerRole") {
                     roles.push(resource);
+                    rolesById[resource.id] = resource;
                 }
             });
             if (!roles.length) {
@@ -605,7 +697,10 @@ window.CadminPractitionerDetail = (function () {
                     : esc(locName || "—");
                 return "<tr><td>" + orgHtml + "</td><td>" + locHtml + "</td><td>" + esc(conceptLabel(role.code)) + "</td><td>" +
                     statusBadge(role.active !== false) + "</td>" +
-                    '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-delete-role="' +
+                    '<td class="text-end">' +
+                    '<button class="btn btn-sm btn-outline-primary me-1" type="button" data-edit-role="' +
+                    esc(role.id) + '" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>' +
+                    '<button class="btn btn-sm btn-outline-danger" type="button" data-delete-role="' +
                     esc(role.id) + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
             }).join(""));
         }).fail(function (xhr) {
@@ -645,6 +740,20 @@ window.CadminPractitionerDetail = (function () {
             practitioner[fieldName] = (practitioner[fieldName] || []).filter(function (_item, i) { return i !== index; });
             savePractitioner(function () {
                 alertMsg("success", "Removed.");
+            });
+        });
+
+        $root.on("click.prdetail", "[data-edit-role]", function () {
+            const id = $(this).attr("data-edit-role");
+            const role = rolesById[id];
+            if (role) {
+                openRoleEditor(role);
+                return;
+            }
+            CadminApi.fhir("/PractitionerRole/" + encodeURIComponent(id)).done(function (resource) {
+                openRoleEditor(resource);
+            }).fail(function (xhr) {
+                fail("Load role", xhr);
             });
         });
 
@@ -838,35 +947,28 @@ window.CadminPractitionerDetail = (function () {
                 alertMsg("danger", "Select an organization.");
                 return;
             }
-            const role = practitionerRoles.find(function (item) { return item.code === $("#prd-role-code").val(); });
-            const resource = {
-                resourceType: "PractitionerRole",
-                active: true,
-                practitioner: {
-                    reference: "Practitioner/" + practitioner.id,
-                    display: personName(practitioner)
-                },
-                organization: {
-                    reference: "Organization/" + organizationId,
-                    display: $("#prd-role-org option:selected").text()
-                }
-            };
+            const roleOption = practitionerRoles.find(function (item) {
+                return item.code === $("#prd-role-code").val();
+            }) || ($("#prd-role-code").val()
+                ? { code: $("#prd-role-code").val(), display: $("#prd-role-code option:selected").text() }
+                : null);
             const locationId = $("#prd-role-loc").val();
-            if (locationId) {
-                resource.location = [{
-                    reference: "Location/" + locationId,
-                    display: $("#prd-role-loc option:selected").text()
-                }];
+            const active = $("#prd-role-active").is(":checked");
+            if (editingRole && editingRole.id) {
+                const resource = applyRoleFields($.extend(true, {}, editingRole),
+                    organizationId, locationId, roleOption, active);
+                CadminApi.fhir("/PractitionerRole/" + encodeURIComponent(editingRole.id), "PUT", resource)
+                    .done(function () {
+                        hideModal("prd-role-modal");
+                        alertMsg("success", "Organization role updated.");
+                        loadRoles();
+                    }).fail(function (xhr) {
+                        fail("Update role", xhr);
+                    });
+                return;
             }
-            if (role) {
-                resource.code = [{
-                    coding: [{
-                        system: "http://terminology.hl7.org/CodeSystem/practitioner-role",
-                        code: role.code,
-                        display: role.display
-                    }]
-                }];
-            }
+            const resource = applyRoleFields({ resourceType: "PractitionerRole" },
+                organizationId, locationId, roleOption, active);
             CadminApi.fhir("/PractitionerRole", "POST", resource).done(function () {
                 hideModal("prd-role-modal");
                 alertMsg("success", "Organization role added.");

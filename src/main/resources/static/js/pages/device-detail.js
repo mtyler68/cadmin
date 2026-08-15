@@ -2,8 +2,7 @@ window.CadminDeviceDetail = (function () {
     const statusOptions = [
         { code: "active", display: "Active" },
         { code: "inactive", display: "Inactive" },
-        { code: "entered-in-error", display: "Entered in error" },
-        { code: "unknown", display: "Unknown" }
+        { code: "entered-in-error", display: "Entered in error" }
     ];
     const typeOptions = [
         { code: "", display: "Unspecified" },
@@ -21,11 +20,8 @@ window.CadminDeviceDetail = (function () {
     ];
     const nameTypes = [
         { code: "user-friendly-name", display: "User-friendly name" },
-        { code: "udi-label-name", display: "UDI label name" },
-        { code: "manufacturer-name", display: "Manufacturer name" },
-        { code: "model-name", display: "Model name" },
-        { code: "patient-reported-name", display: "Patient-reported name" },
-        { code: "other", display: "Other" }
+        { code: "registered-name", display: "Registered name" },
+        { code: "patient-reported-name", display: "Patient-reported name" }
     ];
     const udiEntryTypes = [
         { code: "", display: "Unspecified" },
@@ -37,6 +33,7 @@ window.CadminDeviceDetail = (function () {
     ];
 
     let device = null;
+    let association = null;
 
     function esc(value) {
         return CadminApi.escapeHtml(value);
@@ -78,10 +75,19 @@ window.CadminDeviceDetail = (function () {
         return [given, name.family].filter(Boolean).join(" ") || (resource && resource.id) || "Unnamed";
     }
 
+    function nameValue(item) {
+        return (item && (item.value || item.name)) || "";
+    }
+
+    function deviceNames(resource) {
+        return (resource && (resource.name || resource.deviceName)) || [];
+    }
+
     function deviceLabel(resource) {
-        const names = (resource && resource.deviceName) || [];
+        const names = deviceNames(resource);
+        const preferred = names.find(function (item) { return item.display === true; });
         const friendly = names.find(function (item) { return item.type === "user-friendly-name"; });
-        const named = (friendly || names[0] || {}).name;
+        const named = nameValue(preferred || friendly || names[0] || {});
         if (named) {
             return named;
         }
@@ -132,7 +138,7 @@ window.CadminDeviceDetail = (function () {
     }
 
     function alertMsg(type, message) {
-        CadminApi.showAlert("#dev-detail-alert", type, message);
+        CadminApi.showToast(type, message);
     }
 
     function fail(action, xhr) {
@@ -223,6 +229,10 @@ window.CadminDeviceDetail = (function () {
 
     function render(resource) {
         device = resource;
+        if (!device.name && device.deviceName) {
+            device.name = device.deviceName;
+        }
+        delete device.patient;
         const $root = $("#app-content");
         const admin = CadminApp.isAdmin();
         $root.html(
@@ -234,7 +244,6 @@ window.CadminDeviceDetail = (function () {
                 '<a class="btn btn-outline-primary" href="#/resources/Device/' + encodeURIComponent(device.id) + '">' +
                     '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
             "</div>" +
-            '<div id="dev-detail-alert" class="alert d-none"></div>' +
             '<div class="row">' +
                 '<div class="col-lg-6">' + editCard("Basic details", "dev-basic-details", "#dd-basic-modal") + "</div>" +
                 '<div class="col-lg-6">' + editCard("Assignment", "dev-assign-details", "#dd-assign-modal") + "</div>" +
@@ -262,7 +271,6 @@ window.CadminDeviceDetail = (function () {
                     '<input type="date" class="form-control" id="dd-mfg"></div>' +
                     '<div class="col-md-6 mb-3"><label class="form-label">Expiration date</label>' +
                     '<input type="date" class="form-control" id="dd-exp"></div></div>' +
-                field("Distinct identifier", '<input class="form-control" id="dd-distinct">') +
                 field("URL", '<input class="form-control" id="dd-url">'),
                 "dd-basic-form") +
             modal("dd-assign-modal", "Edit assignment",
@@ -302,6 +310,7 @@ window.CadminDeviceDetail = (function () {
         renderIdentifiers();
         renderUdi();
         renderContacts();
+        loadAssociation();
         bindForms();
     }
 
@@ -316,7 +325,6 @@ window.CadminDeviceDetail = (function () {
                 '<dt class="col-sm-4">Lot</dt><dd class="col-sm-8">' + esc(device.lotNumber || "—") + "</dd>" +
                 '<dt class="col-sm-4">Manufactured</dt><dd class="col-sm-8">' + esc(dateOnly(device.manufactureDate) || "—") + "</dd>" +
                 '<dt class="col-sm-4">Expires</dt><dd class="col-sm-8">' + esc(dateOnly(device.expirationDate) || "—") + "</dd>" +
-                '<dt class="col-sm-4">Distinct ID</dt><dd class="col-sm-8">' + esc(device.distinctIdentifier || "—") + "</dd>" +
                 '<dt class="col-sm-4">URL</dt><dd class="col-sm-8">' + esc(device.url || "—") + "</dd>" +
                 '<dt class="col-sm-4">ID</dt><dd class="col-sm-8"><code>' + esc(device.id) + "</code></dd>" +
             "</dl>"
@@ -330,7 +338,7 @@ window.CadminDeviceDetail = (function () {
         $("#dev-assign-details").html(
             '<dl class="row mb-0">' +
                 '<dt class="col-sm-4">Patient</dt><dd class="col-sm-8">' +
-                    refLink("Patient", device.patient) + "</dd>" +
+                    refLink("Patient", association && association.subject) + "</dd>" +
                 '<dt class="col-sm-4">Owner</dt><dd class="col-sm-8">' +
                     refLink("Organization", device.owner, ownerHref) + "</dd>" +
                 '<dt class="col-sm-4">Location</dt><dd class="col-sm-8">' +
@@ -342,14 +350,14 @@ window.CadminDeviceDetail = (function () {
     }
 
     function renderNames() {
-        const names = device.deviceName || [];
+        const names = deviceNames(device);
         if (!names.length) {
             $("#dev-name-rows").html(emptyRow(3, "No names."));
             return;
         }
         $("#dev-name-rows").html(names.map(function (item, index) {
-            return "<tr><td>" + esc(item.name || "—") + "</td><td>" + esc(nameTypeLabel(item.type)) + "</td>" +
-                '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove="deviceName" data-index="' +
+            return "<tr><td>" + esc(nameValue(item) || "—") + "</td><td>" + esc(nameTypeLabel(item.type)) + "</td>" +
+                '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove="name" data-index="' +
                 index + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
         }).join(""));
     }
@@ -404,6 +412,28 @@ window.CadminDeviceDetail = (function () {
     }
 
     function saveDevice(next) {
+        delete device.patient;
+        delete device.deviceName;
+        delete device.distinctIdentifier;
+        if (device.name) {
+            device.name = device.name.map(function (item) {
+                const mapped = {
+                    value: nameValue(item),
+                    type: item.type === "registered-name" || item.type === "patient-reported-name"
+                        ? item.type : "user-friendly-name"
+                };
+                if (item.display === true) {
+                    mapped.display = true;
+                }
+                return mapped;
+            }).filter(function (item) { return item.value; });
+            if (!device.name.length) {
+                delete device.name;
+            }
+        }
+        if (device.type && !Array.isArray(device.type)) {
+            device.type = [device.type];
+        }
         CadminApi.fhir("/Device/" + encodeURIComponent(device.id), "PUT", device).done(function (updated) {
             device = updated || device;
             refreshLists();
@@ -412,6 +442,73 @@ window.CadminDeviceDetail = (function () {
             }
         }).fail(function (xhr) {
             fail("Update device", xhr);
+        });
+    }
+
+    function currentAssociation(resource) {
+        return resource && resource.resourceType === "DeviceAssociation"
+            && resource.status !== "explanted" && resource.status !== "entered-in-error";
+    }
+
+    function loadAssociation() {
+        CadminApi.fhir("/DeviceAssociation?device=" + encodeURIComponent("Device/" + device.id) + "&_count=50")
+            .done(function (bundle) {
+                association = bundleResources(bundle).find(currentAssociation) || null;
+                renderAssignment();
+            }).fail(function () {
+                association = null;
+                renderAssignment();
+            });
+    }
+
+    function syncPatientAssociation(patientId, display, next) {
+        const currentId = refId(association && association.subject);
+        if (!patientId) {
+            if (association && association.id) {
+                CadminApi.fhir("/DeviceAssociation/" + encodeURIComponent(association.id), "DELETE")
+                    .done(function () {
+                        association = null;
+                        next();
+                    }).fail(function (xhr) {
+                        fail("Update assignment", xhr);
+                    });
+                return;
+            }
+            next();
+            return;
+        }
+        const payload = {
+            resourceType: "DeviceAssociation",
+            status: "attached",
+            device: {
+                reference: "Device/" + device.id,
+                display: deviceLabel(device)
+            },
+            subject: {
+                reference: "Patient/" + patientId,
+                display: display && display !== "None" ? display : undefined
+            }
+        };
+        if (association && association.id) {
+            if (currentId === patientId) {
+                next();
+                return;
+            }
+            payload.id = association.id;
+            CadminApi.fhir("/DeviceAssociation/" + encodeURIComponent(association.id), "PUT", payload)
+                .done(function (updated) {
+                    association = updated || payload;
+                    next();
+                }).fail(function (xhr) {
+                    fail("Update assignment", xhr);
+                });
+            return;
+        }
+        CadminApi.fhir("/DeviceAssociation", "POST", payload).done(function (created) {
+            association = created || payload;
+            next();
+        }).fail(function (xhr) {
+            fail("Update assignment", xhr);
         });
     }
 
@@ -451,12 +548,12 @@ window.CadminDeviceDetail = (function () {
             $("#dd-lot").val(device.lotNumber || "");
             $("#dd-mfg").val(dateOnly(device.manufactureDate));
             $("#dd-exp").val(dateOnly(device.expirationDate));
-            $("#dd-distinct").val(device.distinctIdentifier || "");
             $("#dd-url").val(device.url || "");
         });
 
         $("#dd-assign-modal").on("show.bs.modal", function () {
-            fillSelect("#dd-patient", "/Patient?_count=200&_sort=name", personName, null, refId(device.patient));
+            fillSelect("#dd-patient", "/Patient?_count=200&_sort=name", personName, null,
+                refId(association && association.subject));
             fillSelect("#dd-parent", "/Device?_count=200", deviceLabel, device.id, refId(device.parent));
             if (CadminApp.isAdmin()) {
                 fillSelect("#dd-owner", "/Organization?_count=200&_sort=name", function (org) {
@@ -474,16 +571,18 @@ window.CadminDeviceDetail = (function () {
             const typeCode = $("#dd-type").val();
             const type = typeOptions.find(function (item) { return item.code === typeCode; });
             if (type && type.code) {
-                device.type = {
+                device.type = [{
                     coding: [{
                         system: "http://snomed.info/sct",
                         code: type.code,
                         display: type.display
                     }],
                     text: type.display
-                };
+                }];
             } else if (typeCode && currentCode(device.type) === typeCode) {
-                // keep existing type
+                if (device.type && !Array.isArray(device.type)) {
+                    device.type = [device.type];
+                }
             } else {
                 delete device.type;
             }
@@ -493,7 +592,6 @@ window.CadminDeviceDetail = (function () {
             setOrDelete(device, "lotNumber", $("#dd-lot").val().trim());
             setOrDelete(device, "manufactureDate", $("#dd-mfg").val());
             setOrDelete(device, "expirationDate", $("#dd-exp").val());
-            setOrDelete(device, "distinctIdentifier", $("#dd-distinct").val().trim());
             setOrDelete(device, "url", $("#dd-url").val().trim());
             saveDevice(function () {
                 hideModal("dd-basic-modal");
@@ -503,8 +601,8 @@ window.CadminDeviceDetail = (function () {
 
         $("#dd-assign-form").on("submit", function (event) {
             event.preventDefault();
-            setReference(device, "patient", $("#dd-patient").val(), "Patient",
-                $("#dd-patient option:selected").text());
+            const patientId = $("#dd-patient").val();
+            const patientDisplay = $("#dd-patient option:selected").text();
             setReference(device, "parent", $("#dd-parent").val(), "Device",
                 $("#dd-parent option:selected").text());
             if (CadminApp.isAdmin()) {
@@ -514,18 +612,25 @@ window.CadminDeviceDetail = (function () {
                     $("#dd-location option:selected").text());
             }
             saveDevice(function () {
-                hideModal("dd-assign-modal");
-                alertMsg("success", "Assignment updated.");
+                syncPatientAssociation(patientId, patientDisplay, function () {
+                    hideModal("dd-assign-modal");
+                    renderAssignment();
+                    alertMsg("success", "Assignment updated.");
+                });
             });
         });
 
         $("#dd-name-form").on("submit", function (event) {
             event.preventDefault();
-            device.deviceName = device.deviceName || [];
-            device.deviceName.push({
-                name: $("#dd-name-value").val().trim(),
+            device.name = deviceNames(device);
+            delete device.deviceName;
+            device.name.push({
+                value: $("#dd-name-value").val().trim(),
                 type: $("#dd-name-type").val() || "user-friendly-name"
             });
+            if (!device.name.some(function (item) { return item.display === true; })) {
+                device.name[device.name.length - 1].display = true;
+            }
             saveDevice(function () {
                 hideModal("dd-name-modal");
                 alertMsg("success", "Name added.");

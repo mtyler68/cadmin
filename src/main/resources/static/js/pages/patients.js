@@ -246,7 +246,7 @@ CadminApp.register("patients", function (params) {
             const id = createdId(created, xhr, "Patient");
             const name = (created && patientName(created)) || [given, family].filter(Boolean).join(" ") || id;
             hideModal("create-patient-modal", function () {
-                CadminApi.showAlert("#patient-alert", "success", "Patient created.");
+                CadminApi.showToast("success", "Patient created.");
                 load($("#patient-query").val());
                 if (CadminApp.isAdmin() && id) {
                     offerCareTeam({ id: id, name: name });
@@ -257,7 +257,7 @@ CadminApp.register("patients", function (params) {
                 const id = createdId(xhr.responseJSON, xhr, "Patient");
                 const name = [given, family].filter(Boolean).join(" ") || id;
                 hideModal("create-patient-modal", function () {
-                    CadminApi.showAlert("#patient-alert", "success", "Patient created.");
+                    CadminApi.showToast("success", "Patient created.");
                     load($("#patient-query").val());
                     if (CadminApp.isAdmin() && id) {
                         offerCareTeam({ id: id, name: name });
@@ -265,7 +265,7 @@ CadminApp.register("patients", function (params) {
                 });
                 return;
             }
-            CadminApi.showAlert("#patient-alert", "danger", "Create failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
         });
     });
 
@@ -311,14 +311,14 @@ CadminApp.register("patients", function (params) {
         }
         CadminApi.fhir("/CareTeam", "POST", resource).done(function () {
             hideModal("create-care-team-modal");
-            CadminApi.showAlert("#patient-alert", "success", "Care team created.");
+            CadminApi.showToast("success", "Care team created.");
         }).fail(function (xhr) {
             if (xhr.status >= 200 && xhr.status < 300) {
                 hideModal("create-care-team-modal");
-                CadminApi.showAlert("#patient-alert", "success", "Care team created.");
+                CadminApi.showToast("success", "Care team created.");
                 return;
             }
-            CadminApi.showAlert("#patient-alert", "danger", "Create care team failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create care team failed (" + xhr.status + ").");
         });
     });
 

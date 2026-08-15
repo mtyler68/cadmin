@@ -461,7 +461,7 @@ window.CadminPdsPolicyDetail = (function () {
     }
 
     function alertMsg(type, message) {
-        CadminApi.showAlert("#pds-detail-alert", type, message);
+        CadminApi.showToast(type, message);
     }
 
     function fail(action, xhr) {
@@ -915,7 +915,6 @@ window.CadminPdsPolicyDetail = (function () {
                 '<a class="btn btn-outline-primary" href="#/resources/Library/' + encodeURIComponent(library.id) + '">' +
                     '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
             "</div>" +
-            '<div id="pds-detail-alert" class="alert d-none"></div>' +
             '<div class="card shadow mb-4">' +
                 '<form id="pd-policy-form">' +
                     '<div class="card-header py-3 d-flex justify-content-between align-items-center">' +

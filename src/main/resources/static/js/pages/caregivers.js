@@ -125,10 +125,10 @@ function renderCaregiverList(initialQuery) {
             if (modal) {
                 modal.hide();
             }
-            CadminApi.showAlert("#caregiver-alert", "success", "Caregiver created.");
+            CadminApi.showToast("success", "Caregiver created.");
             load($("#caregiver-query").val());
         }).fail(function (xhr) {
-            CadminApi.showAlert("#caregiver-alert", "danger", "Create failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
         });
     });
 

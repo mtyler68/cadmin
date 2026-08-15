@@ -155,8 +155,8 @@ function renderLocationList(initialQuery) {
                     "<td>" + CadminApi.escapeHtml(loc.name || "Unnamed") + "</td>" +
                     "<td>" + CadminApi.escapeHtml(refLabel(loc.managingOrganization)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(refLabel(loc.partOf)) + "</td>" +
-                    "<td>" + CadminApi.escapeHtml(conceptLabel(loc.physicalType) !== "—"
-                        ? conceptLabel(loc.physicalType) : conceptLabel(loc.type)) + "</td>" +
+                    "<td>" + CadminApi.escapeHtml(conceptLabel(loc.form) !== "—"
+                        ? conceptLabel(loc.form) : conceptLabel(loc.type)) + "</td>" +
                     "<td><span class=\"badge text-bg-" + kind + '">' + CadminApi.escapeHtml(loc.status || "—") + "</span></td>" +
                     "<td><code>" + CadminApi.escapeHtml(loc.id) + "</code></td>" +
                     '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="#/locations/' +
@@ -185,7 +185,7 @@ function renderLocationList(initialQuery) {
         };
         const physical = physicalTypes.find(function (option) { return option.code === $("#loc-physical").val(); });
         if (physical && physical.code) {
-            resource.physicalType = {
+            resource.form = {
                 coding: [{
                     system: "http://terminology.hl7.org/CodeSystem/location-physical-type",
                     code: physical.code,
@@ -222,10 +222,10 @@ function renderLocationList(initialQuery) {
             if (modal) {
                 modal.hide();
             }
-            CadminApi.showAlert("#location-alert", "success", "Location created.");
+            CadminApi.showToast("success", "Location created.");
             load($("#location-query").val());
         }).fail(function (xhr) {
-            CadminApi.showAlert("#location-alert", "danger", "Create failed (" + xhr.status + ").");
+            CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
         });
     });
 

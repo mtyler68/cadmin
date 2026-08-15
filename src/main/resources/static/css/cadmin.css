@@ -215,6 +215,12 @@ a {
     color: var(--cadmin-gray-dark);
 }
 
+#cadmin-toasts {
+    z-index: 1090;
+    top: 4.75rem;
+    right: 0;
+}
+
 .badge-mode {
     font-size: 0.7rem;
     letter-spacing: 0.04em;
@@ -345,6 +351,48 @@ a {
 .yaml-preview-host .cm-s-default .cm-number { color: #0d6efd; }
 .yaml-preview-host .cm-s-default .cm-comment { color: #858796; font-style: italic; }
 .yaml-preview-host .cm-s-default .cm-def { color: #c45c00; }
+
+.cap-matrix thead th {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.cap-matrix tbody td.cap-flag {
+    text-align: center;
+}
+
+.cap-matrix tbody tr.cap-row {
+    cursor: pointer;
+}
+
+.cap-yes {
+    color: #1cc88a;
+    font-size: 1.05rem;
+    line-height: 1;
+}
+
+.cap-no {
+    color: #d1d3e2;
+}
+
+.cap-chip {
+    display: inline-block;
+    background: #eaecf4;
+    color: var(--cadmin-gray-dark);
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin: 0 0.25rem 0.25rem 0;
+}
+
+.cap-filter {
+    max-width: 16rem;
+}
+
+.cap-detail td {
+    background: #f8f9fc;
+}
 
 @media (max-width: 768px) {
     .sidebar {
