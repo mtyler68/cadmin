@@ -1,0 +1,11 @@
+---
+description: Edit the user's local workspace files, not a remote Cloud Agent copy
+alwaysApply: true
+---
+
+# Local source of truth
+
+- Make all code changes in the files of the workspace the user has open (the local project on disk).
+- Do not treat a Cloud Agent VM, a detached worktree, or an un-checked-out PR branch as the user's local source.
+- If this session cannot see the user's local project files, say so and stop. Ask the user to continue in a local Cursor Agent chat (not Cloud Agent) in that folder.
+- After edits, the user should be able to save, run, and debug without fetching another git branch first.
