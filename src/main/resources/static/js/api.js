@@ -4,9 +4,22 @@ window.CadminApi = (function ($) {
         return match ? decodeURIComponent(match[1]) : "";
     }
 
+    let csrfToken = "";
+    let csrfHeaderName = "X-XSRF-TOKEN";
+
     function csrfHeaders() {
-        const token = cookie("XSRF-TOKEN");
-        return token ? { "X-XSRF-TOKEN": token } : {};
+        const token = csrfToken || cookie("XSRF-TOKEN");
+        return token ? { [csrfHeaderName]: token } : {};
+    }
+
+    function rememberCsrf(config) {
+        if (config && config.csrfToken) {
+            csrfToken = config.csrfToken;
+        }
+        if (config && config.csrfHeaderName) {
+            csrfHeaderName = config.csrfHeaderName;
+        }
+        return config;
     }
 
     function ajax(options) {
@@ -21,7 +34,11 @@ window.CadminApi = (function ($) {
     }
 
     function get(url) {
-        return ajax({ url: url, method: "GET" });
+        const request = ajax({ url: url, method: "GET" });
+        if (url === "/api/auth/config") {
+            return request.done(rememberCsrf);
+        }
+        return request;
     }
 
     function send(url, method, data, contentType) {
@@ -35,11 +52,11 @@ window.CadminApi = (function ($) {
 
     function login(username, password) {
         return ajax({
-            url: "/login",
+            url: "/api/auth/login",
             method: "POST",
             skipAuthRedirect: true,
-            data: $.param({ username: username, password: password }),
-            contentType: "application/x-www-form-urlencoded; charset=UTF-8"
+            data: JSON.stringify({ username: username, password: password }),
+            contentType: "application/json"
         });
     }
 

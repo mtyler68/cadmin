@@ -55,6 +55,10 @@ info:
 
 logging:
   level:
-    io.cadmin: INFO
-    org.springframework.cloud.gateway: INFO
-    org.springframework.security: INFO
+    io.cadmin: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.web.server: DEBUG
+    org.springframework.http.server.reactive: DEBUG
+    reactor.netty.http.server: DEBUG

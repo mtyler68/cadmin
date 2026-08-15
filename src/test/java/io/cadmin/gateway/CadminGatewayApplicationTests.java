@@ -1,7 +1,5 @@
 package io.cadmin.gateway;
 
-import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -79,8 +77,7 @@ class CadminGatewayApplicationTests {
 
     @Test
     void adminCanSignInViaFormLogin() {
-        webTestClient.mutateWith(csrf())
-                .post()
+        webTestClient.post()
                 .uri("/login")
                 .header("X-Requested-With", "XMLHttpRequest")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
@@ -92,13 +89,24 @@ class CadminGatewayApplicationTests {
     }
 
     @Test
+    void adminCanSignInViaJsonLogin() {
+        webTestClient.post()
+                .uri("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"username\":\"admin\",\"password\":\"admin\"}")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.authenticated").isEqualTo(true)
+                .jsonPath("$.username").isEqualTo("admin");
+    }
+
+    @Test
     void unknownUserIsRejected() {
-        webTestClient.mutateWith(csrf())
-                .post()
-                .uri("/login")
-                .header("X-Requested-With", "XMLHttpRequest")
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(BodyInserters.fromFormData("username", "admin").with("password", "wrong"))
+        webTestClient.post()
+                .uri("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"username\":\"admin\",\"password\":\"wrong\"}")
                 .exchange()
                 .expectStatus().isUnauthorized();
     }

@@ -4,7 +4,10 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.csrf.CookieServerCsrfTokenRepository;
+import org.springframework.security.web.server.csrf.CsrfWebFilter;
 import org.springframework.security.web.server.csrf.ServerCsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.server.util.matcher.AndServerWebExchangeMatcher;
+import org.springframework.security.web.server.util.matcher.NegatedServerWebExchangeMatcher;
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 
 final class SecuritySupport {
@@ -24,7 +27,12 @@ final class SecuritySupport {
                         .authenticationEntryPoint(new SpaAuthenticationEntryPoint()))
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfRepo)
-                        .csrfTokenRequestHandler(new ServerCsrfTokenRequestAttributeHandler()))
+                        .csrfTokenRequestHandler(new ServerCsrfTokenRequestAttributeHandler())
+                        .requireCsrfProtectionMatcher(new AndServerWebExchangeMatcher(
+                                CsrfWebFilter.DEFAULT_CSRF_MATCHER,
+                                new NegatedServerWebExchangeMatcher(
+                                        ServerWebExchangeMatchers.pathMatchers(
+                                                HttpMethod.POST, "/login", "/api/auth/login")))))
                 .addFilterAfter(new CsrfCookieWebFilter(), SecurityWebFiltersOrder.CSRF);
     }
 

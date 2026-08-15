@@ -10,7 +10,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.authentication.ReactiveAuthenticationManager;
+import org.springframework.security.authentication.UserDetailsRepositoryReactiveAuthenticationManager;
 import org.springframework.security.core.userdetails.MapReactiveUserDetailsService;
+import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -70,6 +73,17 @@ public class LocalSecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    }
+
+    @Bean
+    ReactiveAuthenticationManager reactiveAuthenticationManager(
+            ReactiveUserDetailsService users,
+            PasswordEncoder encoder
+    ) {
+        UserDetailsRepositoryReactiveAuthenticationManager manager =
+                new UserDetailsRepositoryReactiveAuthenticationManager(users);
+        manager.setPasswordEncoder(encoder);
+        return manager;
     }
 
     private static ServerLogoutSuccessHandler localLogoutSuccessHandler() {

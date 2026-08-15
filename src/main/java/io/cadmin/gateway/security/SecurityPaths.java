@@ -12,6 +12,7 @@ final class SecurityPaths {
             "/webjars/**",
             "/favicon.ico",
             "/api/auth/config",
+            "/api/auth/login",
             "/actuator/health",
             "/actuator/health/**",
             "/actuator/info"

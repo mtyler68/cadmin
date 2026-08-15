@@ -2,10 +2,13 @@ package io.cadmin.gateway.web;
 
 import io.cadmin.gateway.config.CadminProperties;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.http.MediaType;
+import org.springframework.security.web.server.csrf.CsrfToken;
+import org.springframework.web.server.ServerWebExchange;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
@@ -28,13 +31,21 @@ public class AuthController {
     }
 
     @GetMapping("/config")
-    public Map<String, Object> config() {
+    public Mono<Map<String, Object>> config(ServerWebExchange exchange) {
         boolean oidc = properties.security().oidc();
-        return Map.of(
-                "mode", properties.security().mode(),
-                "oidcLoginUrl", oidc ? "/oauth2/authorization/keycloak" : "",
-                "fhirBaseUrl", "/fhir"
-        );
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("mode", properties.security().mode());
+        body.put("oidcLoginUrl", oidc ? "/oauth2/authorization/keycloak" : "");
+        body.put("fhirBaseUrl", "/fhir");
+        Mono<CsrfToken> csrf = exchange.getAttribute(CsrfToken.class.getName());
+        if (csrf == null) {
+            return Mono.just(body);
+        }
+        return csrf.map(token -> {
+            body.put("csrfToken", token.getToken());
+            body.put("csrfHeaderName", token.getHeaderName());
+            return body;
+        });
     }
 
     @GetMapping("/me")
