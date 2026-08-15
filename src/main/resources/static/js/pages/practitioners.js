@@ -20,13 +20,14 @@ function renderPractitionerList(initialQuery) {
         { code: "teacher", display: "Teacher" },
         { code: "ict", display: "ICT professional" }
     ];
+    let pendingPractitioner = null;
     const $root = $("#app-content");
     $root.html(
         '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
             '<h1 class="h3 mb-0 page-title">Practitioners</h1>' +
             '<button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#create-practitioner-modal">' +
                 '<i class="bi bi-plus-lg me-1"></i>New practitioner</button>' +
-        '</div>' +
+        "</div>" +
         '<div id="practitioner-alert" class="alert d-none"></div>' +
         '<div class="card shadow mb-4">' +
             '<div class="card-header py-3 d-flex justify-content-between align-items-center">' +
@@ -35,17 +36,17 @@ function renderPractitionerList(initialQuery) {
                     '<input class="form-control form-control-sm me-2" id="practitioner-query" placeholder="Name" value="' +
                         CadminApi.escapeHtml(initialQuery) + '">' +
                     '<button class="btn btn-sm btn-primary" type="submit">Search</button>' +
-                '</form>' +
-            '</div>' +
+                "</form>" +
+            "</div>" +
             '<div class="card-body">' +
                 '<div class="table-responsive">' +
                     '<table class="table table-hover align-middle">' +
-                        '<thead><tr><th>Name</th><th>Gender</th><th>Status</th><th>ID</th><th></th></tr></thead>' +
+                        "<thead><tr><th>Name</th><th>Gender</th><th>Status</th><th>ID</th><th></th></tr></thead>" +
                         '<tbody id="practitioner-rows"><tr><td colspan="5" class="text-muted">Loading…</td></tr></tbody>' +
-                    '</table>' +
-                '</div>' +
-            '</div>' +
-        '</div>' +
+                    "</table>" +
+                "</div>" +
+            "</div>" +
+        "</div>" +
         '<div class="modal fade" id="create-practitioner-modal" tabindex="-1">' +
             '<div class="modal-dialog">' +
                 '<form class="modal-content" id="create-practitioner-form">' +
@@ -63,23 +64,56 @@ function renderPractitionerList(initialQuery) {
                                 '<option value="male">Male</option>' +
                                 '<option value="other">Other</option>' +
                             "</select></div>" +
-                        '<div class="form-check mb-3">' +
+                        '<div class="form-check mb-0">' +
                             '<input class="form-check-input" type="checkbox" id="pr-active" checked>' +
                             '<label class="form-check-label" for="pr-active">Active</label>' +
                         "</div>" +
-                        '<div id="pr-role-section"' + (CadminApp.isAdmin() ? "" : ' class="d-none"') + ">" +
-                        '<hr>' +
-                        '<h6 class="mb-3">Initial organization role</h6>' +
+                    "</div>" +
+                    '<div class="modal-footer">' +
+                        '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>' +
+                        '<button type="submit" class="btn btn-primary">Create</button>' +
+                    "</div>" +
+                "</form>" +
+            "</div>" +
+        "</div>" +
+        '<div class="modal fade" id="offer-practitioner-role-modal" tabindex="-1">' +
+            '<div class="modal-dialog">' +
+                '<div class="modal-content">' +
+                    '<div class="modal-header"><h5 class="modal-title">Create practitioner role?</h5>' +
+                        '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+                    '<div class="modal-body">' +
+                        '<p class="mb-0">Practitioner <strong id="offer-practitioner-role-name"></strong> was created. Create a practitioner role for this practitioner?</p>' +
+                    "</div>" +
+                    '<div class="modal-footer">' +
+                        '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Not now</button>' +
+                        '<button type="button" class="btn btn-primary" id="offer-practitioner-role-yes">Create practitioner role</button>' +
+                    "</div>" +
+                "</div>" +
+            "</div>" +
+        "</div>" +
+        '<div class="modal fade" id="create-practitioner-role-modal" tabindex="-1">' +
+            '<div class="modal-dialog">' +
+                '<form class="modal-content" id="create-practitioner-role-form">' +
+                    '<div class="modal-header"><h5 class="modal-title">Create practitioner role</h5>' +
+                        '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+                    '<div class="modal-body">' +
+                        '<div class="mb-3"><label class="form-label">Practitioner</label>' +
+                            '<input class="form-control" id="pr-role-practitioner-name" readonly>' +
+                            '<input type="hidden" id="pr-role-practitioner"></div>' +
                         '<div class="mb-3"><label class="form-label">Organization</label>' +
-                            '<select class="form-select" id="pr-organization">' +
-                                '<option value="">None</option>' +
-                            "</select></div>" +
-                        '<div class="mb-0"><label class="form-label">Role</label>' +
-                            '<select class="form-select" id="pr-role">' +
+                            '<select class="form-select" id="pr-role-org" required><option value="">Select…</option></select></div>' +
+                        '<div class="mb-3"><label class="form-label">Location</label>' +
+                            '<select class="form-select" id="pr-role-loc"><option value="">None</option></select></div>' +
+                        '<div class="mb-3"><label class="form-label">Role</label>' +
+                            '<select class="form-select" id="pr-role-code">' +
                                 roleOptions.map(function (option) {
-                                    return '<option value="' + option.code + '">' + CadminApi.escapeHtml(option.display) + "</option>";
+                                    return '<option value="' + option.code + '">' +
+                                        CadminApi.escapeHtml(option.display) + "</option>";
                                 }).join("") +
                             "</select></div>" +
+                        '<div class="form-check mb-0">' +
+                            '<input class="form-check-input" type="checkbox" id="pr-role-active" checked>' +
+                            '<label class="form-check-label" for="pr-role-active">Active</label>' +
                         "</div>" +
                     "</div>" +
                     '<div class="modal-footer">' +
@@ -92,62 +126,78 @@ function renderPractitionerList(initialQuery) {
     );
 
     function personName(resource) {
-        const name = (resource.name && resource.name[0]) || {};
+        const name = (resource && resource.name && resource.name[0]) || {};
         const given = (name.given || []).join(" ");
-        return [given, name.family].filter(Boolean).join(" ") || resource.id || "Unnamed";
+        return [given, name.family].filter(Boolean).join(" ") || (resource && resource.id) || "Unnamed";
     }
 
-    function loadOrganizationOptions() {
-        const $select = $("#pr-organization");
-        const previous = $select.val();
-        CadminApi.fhir("/Organization?_count=200&_sort=name").done(function (bundle) {
-            const options = ['<option value="">None</option>'].concat((bundle.entry || []).map(function (e) {
-                return e.resource;
-            }).filter(Boolean).map(function (org) {
-                return '<option value="' + CadminApi.escapeHtml(org.id) + '">' +
-                    CadminApi.escapeHtml(org.name || org.id) + "</option>";
-            }));
-            $select.html(options.join(""));
-            if (previous && $select.find('option[value="' + previous + '"]').length) {
-                $select.val(previous);
+    function createdId(body, xhr, resourceType) {
+        if (body && body.id) {
+            return body.id;
+        }
+        const header = (xhr && (xhr.getResponseHeader("Location") || xhr.getResponseHeader("Content-Location"))) || "";
+        const match = header.match(new RegExp(resourceType + "/([^/?#]+)"));
+        return match ? decodeURIComponent(match[1]) : "";
+    }
+
+    function hideModal(id, then) {
+        const el = document.getElementById(id);
+        const modal = bootstrap.Modal.getInstance(el);
+        if (!modal) {
+            if (then) {
+                then();
             }
+            return;
+        }
+        if (then) {
+            $(el).one("hidden.bs.modal", then);
+        }
+        modal.hide();
+    }
+
+    function showModal(id) {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).show();
+    }
+
+    function fillSelect(selector, path, labelFn, placeholder) {
+        const $select = $(selector);
+        CadminApi.fhir(path).done(function (bundle) {
+            const options = ['<option value="">' + CadminApi.escapeHtml(placeholder || "None") + "</option>"]
+                .concat((bundle.entry || []).map(function (e) { return e.resource; }).filter(Boolean).map(function (resource) {
+                    return '<option value="' + CadminApi.escapeHtml(resource.id) + '">' +
+                        CadminApi.escapeHtml(labelFn(resource)) + "</option>";
+                }));
+            $select.html(options.join(""));
         });
     }
 
-    function createPractitionerRole(practitioner, done) {
-        const organizationId = $("#pr-organization").val();
-        if (!organizationId) {
-            done(false);
-            return;
-        }
-        const role = roleOptions.find(function (option) { return option.code === $("#pr-role").val(); });
-        const resource = {
-            resourceType: "PractitionerRole",
-            active: true,
-            practitioner: {
-                reference: "Practitioner/" + practitioner.id,
-                display: personName(practitioner)
-            },
-            organization: {
-                reference: "Organization/" + organizationId,
-                display: $("#pr-organization option:selected").text()
+    function openPractitionerRoleDialog(practitioner) {
+        $("#pr-role-practitioner").val(practitioner.id);
+        $("#pr-role-practitioner-name").val(practitioner.name);
+        $("#pr-role-code").val("doctor");
+        $("#pr-role-active").prop("checked", true);
+        fillSelect("#pr-role-org", "/Organization?_count=200&_sort=name", function (org) {
+            return org.name || org.id;
+        }, "Select…");
+        fillSelect("#pr-role-loc", "/Location?_count=200&_sort=name", function (loc) {
+            return loc.name || loc.id;
+        }, "None");
+        showModal("create-practitioner-role-modal");
+    }
+
+    function offerPractitionerRole(practitioner) {
+        pendingPractitioner = practitioner;
+        $("#offer-practitioner-role-name").text(practitioner.name);
+        showModal("offer-practitioner-role-modal");
+    }
+
+    function afterPractitionerCreated(id, name) {
+        hideModal("create-practitioner-modal", function () {
+            CadminApi.showAlert("#practitioner-alert", "success", "Practitioner created.");
+            load($("#practitioner-query").val());
+            if (CadminApp.isAdmin() && id) {
+                offerPractitionerRole({ id: id, name: name });
             }
-        };
-        if (role) {
-            resource.code = [{
-                coding: [{
-                    system: "http://terminology.hl7.org/CodeSystem/practitioner-role",
-                    code: role.code,
-                    display: role.display
-                }]
-            }];
-        }
-        CadminApi.fhir("/PractitionerRole", "POST", resource).done(function () {
-            done(true);
-        }).fail(function (xhr) {
-            CadminApi.showAlert("#practitioner-alert", "warning",
-                "Practitioner created, but organization role failed (" + xhr.status + ").");
-            done(null);
         });
     }
 
@@ -190,32 +240,91 @@ function renderPractitionerList(initialQuery) {
 
     $("#create-practitioner-form").on("submit", function (event) {
         event.preventDefault();
+        const given = $("#pr-given").val().trim();
+        const family = $("#pr-family").val().trim();
         const resource = {
             resourceType: "Practitioner",
-            name: [{ family: $("#pr-family").val(), given: [$("#pr-given").val()] }],
+            name: [{ family: family, given: given ? [given] : [] }],
             gender: $("#pr-gender").val(),
             active: $("#pr-active").is(":checked")
         };
-        CadminApi.fhir("/Practitioner", "POST", resource).done(function (created) {
-            createPractitionerRole(created, function (assigned) {
-                const modal = bootstrap.Modal.getInstance(document.getElementById("create-practitioner-modal"));
-                if (modal) {
-                    modal.hide();
-                }
-                if (assigned === true) {
-                    CadminApi.showAlert("#practitioner-alert", "success",
-                        "Practitioner created and assigned to the organization.");
-                } else if (assigned === false) {
-                    CadminApi.showAlert("#practitioner-alert", "success", "Practitioner created.");
-                }
-                load($("#practitioner-query").val());
-            });
+        CadminApi.fhir("/Practitioner", "POST", resource).done(function (created, _status, xhr) {
+            const id = createdId(created, xhr, "Practitioner");
+            const name = (created && personName(created)) || [given, family].filter(Boolean).join(" ") || id;
+            afterPractitionerCreated(id, name);
         }).fail(function (xhr) {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                const id = createdId(xhr.responseJSON, xhr, "Practitioner");
+                const name = [given, family].filter(Boolean).join(" ") || id;
+                afterPractitionerCreated(id, name);
+                return;
+            }
             CadminApi.showAlert("#practitioner-alert", "danger", "Create failed (" + xhr.status + ").");
         });
     });
 
-    $("#create-practitioner-modal").on("show.bs.modal", loadOrganizationOptions);
+    $("#offer-practitioner-role-yes").on("click", function () {
+        const practitioner = pendingPractitioner;
+        hideModal("offer-practitioner-role-modal", function () {
+            if (practitioner && practitioner.id) {
+                openPractitionerRoleDialog(practitioner);
+            }
+        });
+    });
+
+    $("#create-practitioner-role-form").on("submit", function (event) {
+        event.preventDefault();
+        const practitionerId = $("#pr-role-practitioner").val();
+        const organizationId = $("#pr-role-org").val();
+        if (!practitionerId) {
+            CadminApi.showAlert("#practitioner-alert", "danger", "Practitioner is missing.");
+            return;
+        }
+        if (!organizationId) {
+            CadminApi.showAlert("#practitioner-alert", "danger", "Select an organization.");
+            return;
+        }
+        const role = roleOptions.find(function (option) { return option.code === $("#pr-role-code").val(); });
+        const resource = {
+            resourceType: "PractitionerRole",
+            active: $("#pr-role-active").is(":checked"),
+            practitioner: {
+                reference: "Practitioner/" + practitionerId,
+                display: $("#pr-role-practitioner-name").val()
+            },
+            organization: {
+                reference: "Organization/" + organizationId,
+                display: $("#pr-role-org option:selected").text()
+            }
+        };
+        const locationId = $("#pr-role-loc").val();
+        if (locationId) {
+            resource.location = [{
+                reference: "Location/" + locationId,
+                display: $("#pr-role-loc option:selected").text()
+            }];
+        }
+        if (role) {
+            resource.code = [{
+                coding: [{
+                    system: "http://terminology.hl7.org/CodeSystem/practitioner-role",
+                    code: role.code,
+                    display: role.display
+                }]
+            }];
+        }
+        CadminApi.fhir("/PractitionerRole", "POST", resource).done(function () {
+            hideModal("create-practitioner-role-modal");
+            CadminApi.showAlert("#practitioner-alert", "success", "Practitioner role created.");
+        }).fail(function (xhr) {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                hideModal("create-practitioner-role-modal");
+                CadminApi.showAlert("#practitioner-alert", "success", "Practitioner role created.");
+                return;
+            }
+            CadminApi.showAlert("#practitioner-alert", "danger", "Create practitioner role failed (" + xhr.status + ").");
+        });
+    });
 
     load(initialQuery);
 }

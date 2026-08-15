@@ -71,10 +71,15 @@ window.CadminApi = (function ($) {
             method: method || "GET",
             data: data ? JSON.stringify(data) : undefined,
             contentType: data ? "application/fhir+json" : undefined,
+            converters: {
+                "text json": function (text) {
+                    return text && String(text).trim() ? JSON.parse(text) : null;
+                }
+            },
             headers: $.extend({
                 "X-Requested-With": "XMLHttpRequest",
                 Accept: "application/fhir+json"
-            }, csrfHeaders())
+            }, data ? { Prefer: "return=representation" } : {}, csrfHeaders())
         });
     }
 

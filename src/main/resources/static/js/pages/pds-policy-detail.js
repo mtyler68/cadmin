@@ -31,6 +31,380 @@ window.CadminPdsPolicyDetail = (function () {
 
     let library = null;
     let otherPolicies = [];
+    let targetEditor = null;
+    let yamlPreviewEditor = null;
+    let springElModeDefined = false;
+
+    const spelKeywords = {
+        "true": true,
+        "false": true,
+        "null": true,
+        "new": true,
+        "instanceof": true,
+        "matches": true,
+        "between": true,
+        "and": true,
+        "or": true,
+        "not": true,
+        "eq": true,
+        "ne": true,
+        "lt": true,
+        "le": true,
+        "gt": true,
+        "ge": true
+    };
+
+    function defineSpringElMode() {
+        if (typeof CodeMirror === "undefined" || springElModeDefined) {
+            return;
+        }
+        springElModeDefined = true;
+        CodeMirror.defineMode("springel", function () {
+            function tokenString(quote) {
+                return function (stream, state) {
+                    let escaped = false;
+                    let next;
+                    while ((next = stream.next()) != null) {
+                        if (quote === "'" && next === "'" && stream.peek() === "'") {
+                            stream.next();
+                            continue;
+                        }
+                        if (next === quote && !escaped) {
+                            state.tokenize = tokenBase;
+                            break;
+                        }
+                        escaped = quote === '"' && !escaped && next === "\\";
+                    }
+                    return "string";
+                };
+            }
+
+            function tokenBase(stream, state) {
+                if (stream.eatSpace()) {
+                    return null;
+                }
+                const ch = stream.next();
+                if (ch === "'" || ch === '"') {
+                    state.tokenize = tokenString(ch);
+                    return state.tokenize(stream, state);
+                }
+                if (ch === "/" && stream.eat("/")) {
+                    stream.skipToEnd();
+                    return "comment";
+                }
+                if (/\d/.test(ch)) {
+                    if (ch === "0" && stream.eat(/[xX]/)) {
+                        stream.eatWhile(/[0-9a-fA-F]/);
+                        return "number";
+                    }
+                    stream.eatWhile(/\d/);
+                    if (stream.peek() === ".") {
+                        stream.next();
+                        if (!stream.eatWhile(/\d/)) {
+                            stream.backUp(1);
+                        }
+                    }
+                    stream.match(/^[eE][+-]?\d+/);
+                    stream.eat(/[lLfFdD]/);
+                    return "number";
+                }
+                if (ch === "#") {
+                    if (stream.match(/^[A-Za-z_][\w$]*/) || stream.eat("{")) {
+                        return "variable-2";
+                    }
+                    return "operator";
+                }
+                if (ch === "@") {
+                    stream.match(/^[A-Za-z_][\w$]*/);
+                    return "atom";
+                }
+                if (ch === "T" && stream.peek() === "(") {
+                    return "builtin";
+                }
+                if (ch === "?" && /[:.]/.test(stream.peek() || "")) {
+                    stream.next();
+                    return "operator";
+                }
+                if ((ch === "!" || ch === "^" || ch === "$") && stream.peek() === "[") {
+                    return "operator";
+                }
+                if ((ch === "=" || ch === "!" || ch === "<" || ch === ">") && stream.peek() === "=") {
+                    stream.next();
+                    return "operator";
+                }
+                if (ch === "&" && stream.peek() === "&") {
+                    stream.next();
+                    return "operator";
+                }
+                if (ch === "|" && stream.peek() === "|") {
+                    stream.next();
+                    return "operator";
+                }
+                if ("()[]{}".indexOf(ch) >= 0) {
+                    return "bracket";
+                }
+                if ("+-*/%^=!<>&|?:.,;$".indexOf(ch) >= 0) {
+                    return "operator";
+                }
+                stream.backUp(1);
+                const word = stream.match(/^[A-Za-z_$][\w$]*/);
+                if (word) {
+                    return spelKeywords[word[0]] ? "keyword" : "variable";
+                }
+                stream.next();
+                return null;
+            }
+
+            return {
+                startState: function () {
+                    return { tokenize: tokenBase };
+                },
+                token: function (stream, state) {
+                    return state.tokenize(stream, state);
+                },
+                lineComment: "//"
+            };
+        });
+        CodeMirror.defineMIME("text/x-springel", "springel");
+    }
+
+    function spelStringMask(text) {
+        const mask = [];
+        let i = 0;
+        while (i < text.length) {
+            const ch = text.charAt(i);
+            if (ch === "'" || ch === '"') {
+                const quote = ch;
+                mask[i] = false;
+                i += 1;
+                while (i < text.length) {
+                    if (quote === "'" && text.charAt(i) === "'" && text.charAt(i + 1) === "'") {
+                        mask[i] = true;
+                        mask[i + 1] = true;
+                        i += 2;
+                        continue;
+                    }
+                    if (quote === '"' && text.charAt(i) === "\\") {
+                        mask[i] = true;
+                        i += 1;
+                        if (i < text.length) {
+                            mask[i] = true;
+                            i += 1;
+                        }
+                        continue;
+                    }
+                    if (text.charAt(i) === quote) {
+                        mask[i] = false;
+                        i += 1;
+                        break;
+                    }
+                    mask[i] = true;
+                    i += 1;
+                }
+                continue;
+            }
+            mask[i] = false;
+            i += 1;
+        }
+        return mask;
+    }
+
+    function currentParameterRange(text, index) {
+        if (!text || index < 0 || index > text.length) {
+            return null;
+        }
+        const inString = spelStringMask(text);
+        if (index < inString.length && inString[index]) {
+            return null;
+        }
+        const pairs = { "(": ")", "[": "]", "{": "}" };
+        const closers = { ")": "(", "]": "[", "}": "{" };
+        let openPos = -1;
+        let opener = "";
+        let depth = 0;
+        for (let i = index - 1; i >= 0; i -= 1) {
+            if (inString[i]) {
+                continue;
+            }
+            const ch = text.charAt(i);
+            if (closers[ch]) {
+                depth += 1;
+            } else if (pairs[ch]) {
+                if (depth === 0) {
+                    openPos = i;
+                    opener = ch;
+                    break;
+                }
+                depth -= 1;
+            }
+        }
+        if (openPos < 0) {
+            return null;
+        }
+        const closer = pairs[opener];
+        depth = 0;
+        let closePos = -1;
+        for (let i = openPos + 1; i < text.length; i += 1) {
+            if (inString[i]) {
+                continue;
+            }
+            const ch = text.charAt(i);
+            if (ch === opener) {
+                depth += 1;
+            } else if (ch === closer) {
+                if (depth === 0) {
+                    closePos = i;
+                    break;
+                }
+                depth -= 1;
+            }
+        }
+        if (index === openPos || (closePos >= 0 && index === closePos)) {
+            return { open: openPos, close: closePos, arg: null };
+        }
+        if (closePos < 0 && index < openPos) {
+            return null;
+        }
+        const endLimit = closePos >= 0 ? closePos : text.length;
+        const args = [];
+        let start = openPos + 1;
+        depth = 0;
+        for (let i = openPos + 1; i < endLimit; i += 1) {
+            if (inString[i]) {
+                continue;
+            }
+            const ch = text.charAt(i);
+            if (pairs[ch]) {
+                depth += 1;
+            } else if (closers[ch]) {
+                depth -= 1;
+            } else if (ch === "," && depth === 0) {
+                args.push({ start: start, end: i });
+                start = i + 1;
+            }
+        }
+        args.push({ start: start, end: endLimit });
+        let arg = null;
+        args.forEach(function (item) {
+            if (index >= item.start && index <= item.end) {
+                arg = item;
+            }
+        });
+        return { open: openPos, close: closePos, arg: arg };
+    }
+
+    function trimParameterArg(text, arg) {
+        if (!arg) {
+            return null;
+        }
+        let start = arg.start;
+        let end = arg.end;
+        while (start < end && /\s/.test(text.charAt(start))) {
+            start += 1;
+        }
+        while (end > start && /\s/.test(text.charAt(end - 1))) {
+            end -= 1;
+        }
+        if (end <= start) {
+            return null;
+        }
+        return { start: start, end: end };
+    }
+
+    function bindParameterMatch(cm) {
+        let marks = [];
+        function clearMarks() {
+            marks.forEach(function (mark) { mark.clear(); });
+            marks = [];
+        }
+        function refreshMarks() {
+            clearMarks();
+            const text = cm.getValue();
+            const range = currentParameterRange(text, cm.indexFromPos(cm.getCursor()));
+            if (!range) {
+                return;
+            }
+            function pos(index) {
+                return cm.posFromIndex(index);
+            }
+            marks.push(cm.markText(pos(range.open), pos(range.open + 1), {
+                className: "spel-param-bracket",
+                inclusiveLeft: false,
+                inclusiveRight: false
+            }));
+            if (range.close >= 0) {
+                marks.push(cm.markText(pos(range.close), pos(range.close + 1), {
+                    className: "spel-param-bracket",
+                    inclusiveLeft: false,
+                    inclusiveRight: false
+                }));
+            }
+            const arg = trimParameterArg(text, range.arg);
+            if (arg) {
+                marks.push(cm.markText(pos(arg.start), pos(arg.end), {
+                    className: "spel-current-param",
+                    inclusiveLeft: false,
+                    inclusiveRight: false
+                }));
+            }
+        }
+        cm.on("cursorActivity", refreshMarks);
+        cm.on("changes", refreshMarks);
+        refreshMarks();
+    }
+
+    function attachSpelEditor(textarea, minHeight) {
+        if (typeof CodeMirror === "undefined" || !textarea) {
+            return null;
+        }
+        defineSpringElMode();
+        const cm = CodeMirror.fromTextArea(textarea, {
+            mode: "springel",
+            theme: "default",
+            lineWrapping: true,
+            viewportMargin: Infinity,
+            matchBrackets: true,
+            highlightSelectionMatches: {
+                minChars: 2,
+                delay: 80,
+                wordsOnly: false,
+                showToken: /[#@A-Za-z0-9_$]/,
+                trim: true
+            },
+            extraKeys: { Tab: false, "Shift-Tab": false }
+        });
+        if (minHeight) {
+            cm.getWrapperElement().style.minHeight = minHeight;
+        }
+        bindParameterMatch(cm);
+        requestAnimationFrame(function () {
+            cm.refresh();
+        });
+        return cm;
+    }
+
+    function teardownSpelEditors() {
+        teardownYamlPreview();
+        if (targetEditor) {
+            targetEditor.toTextArea();
+            targetEditor = null;
+        }
+        $("#pd-policy-ontarget .pd-ontarget-row").each(function () {
+            const cm = $(this).data("cm");
+            if (cm) {
+                cm.toTextArea();
+                $(this).removeData("cm");
+            }
+        });
+    }
+
+    function attachOnTargetEditor($row) {
+        const textarea = $row.find("textarea.pd-ontarget-value")[0];
+        const cm = attachSpelEditor(textarea, "3.5rem");
+        if (cm) {
+            $row.data("cm", cm);
+        }
+    }
 
     function esc(value) {
         return CadminApi.escapeHtml(value);
@@ -134,6 +508,21 @@ window.CadminPdsPolicyDetail = (function () {
                         '<button type="submit" class="btn btn-primary">Save</button>' +
                     "</div>" +
                 "</form>" +
+            "</div>" +
+        "</div>";
+    }
+
+    function viewModal(id, title, body) {
+        return '<div class="modal fade" id="' + id + '" tabindex="-1">' +
+            '<div class="modal-dialog modal-lg">' +
+                '<div class="modal-content">' +
+                    '<div class="modal-header"><h5 class="modal-title">' + title + "</h5>" +
+                        '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+                    '<div class="modal-body">' + body + "</div>" +
+                    '<div class="modal-footer">' +
+                        '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>' +
+                    "</div>" +
+                "</div>" +
             "</div>" +
         "</div>";
     }
@@ -435,23 +824,73 @@ window.CadminPdsPolicyDetail = (function () {
     }
 
     function onTargetRowHtml(value) {
-        return '<div class="input-group mb-2 pd-ontarget-row">' +
-            '<textarea class="form-control font-monospace pd-ontarget-value" rows="2" placeholder="SpringEL statement">' +
-                esc(value || "") + "</textarea>" +
-            '<button class="btn btn-outline-danger" type="button" data-ontarget-remove title="Remove statement">' +
+        return '<div class="d-flex align-items-stretch gap-2 mb-2 pd-ontarget-row">' +
+            '<div class="spel-host flex-grow-1 min-w-0">' +
+                '<textarea class="form-control font-monospace pd-ontarget-value" rows="2" placeholder="SpringEL statement">' +
+                    esc(value || "") + "</textarea>" +
+            "</div>" +
+            '<button class="btn btn-outline-danger align-self-start" type="button" data-ontarget-remove title="Remove statement">' +
                 '<i class="bi bi-x-lg"></i></button>' +
             "</div>";
     }
 
     function collectOnTarget() {
         const statements = [];
-        $("#pd-policy-ontarget .pd-ontarget-value").each(function () {
-            const value = ($(this).val() || "").trim();
+        $("#pd-policy-ontarget .pd-ontarget-row").each(function () {
+            const cm = $(this).data("cm");
+            const value = (cm ? cm.getValue() : ($(this).find(".pd-ontarget-value").val() || "")).trim();
             if (value) {
                 statements.push(value);
             }
         });
         return statements;
+    }
+
+    function collectPolicyForm() {
+        return {
+            id: ($("#pd-policy-id").val() || "").trim(),
+            description: ($("#pd-policy-description").val() || "").trim(),
+            version: ($("#pd-policy-version").val() || "").trim(),
+            status: $("#pd-policy-status").val() || "draft",
+            imports: collectImports(($("#pd-policy-id").val() || "").trim()),
+            target: (targetEditor ? targetEditor.getValue() : ($("#pd-policy-target").val() || "")).trim(),
+            apply: $("#pd-policy-apply").val() || "deny-overrides",
+            onTarget: collectOnTarget()
+        };
+    }
+
+    function teardownYamlPreview() {
+        if (yamlPreviewEditor) {
+            yamlPreviewEditor.toTextArea();
+            yamlPreviewEditor = null;
+        }
+    }
+
+    function showGeneratedYaml() {
+        const yaml = dumpPolicyYaml(collectPolicyForm());
+        const textarea = document.getElementById("pd-yaml-preview");
+        if (!textarea) {
+            return;
+        }
+        teardownYamlPreview();
+        textarea.value = yaml;
+        if (typeof CodeMirror === "undefined") {
+            return;
+        }
+        yamlPreviewEditor = CodeMirror.fromTextArea(textarea, {
+            mode: "yaml",
+            theme: "default",
+            readOnly: true,
+            lineNumbers: true,
+            lineWrapping: true,
+            viewportMargin: Infinity
+        });
+        yamlPreviewEditor.setSize("100%", "28rem");
+        requestAnimationFrame(function () {
+            if (yamlPreviewEditor) {
+                yamlPreviewEditor.refresh();
+            }
+        });
     }
 
     function applySelectHtml(selected) {
@@ -484,7 +923,11 @@ window.CadminPdsPolicyDetail = (function () {
                             '<h6 class="m-0">Policy content</h6>' +
                             '<div class="small text-muted mt-1"><code>' + esc(policyContentType) + "</code></div>" +
                         "</div>" +
-                        '<button class="btn btn-sm btn-primary" type="submit">Save</button>' +
+                        '<div class="d-flex gap-2">' +
+                            '<button class="btn btn-sm btn-primary" type="submit">Save</button>' +
+                            '<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#pd-yaml-modal">' +
+                                '<i class="bi bi-filetype-yml me-1"></i>View YAML</button>' +
+                        "</div>" +
                     "</div>" +
                     '<div class="card-body">' +
                         '<div class="row">' +
@@ -508,8 +951,9 @@ window.CadminPdsPolicyDetail = (function () {
                             '<div id="pd-policy-imports"></div>' +
                             '<div class="form-text">Each import is another policy’s <code>Library.name</code>.</div>' +
                         "</div>" +
-                        field("Target", '<textarea class="form-control font-monospace" id="pd-policy-target" rows="4" ' +
-                            'placeholder="SpringEL predicate"></textarea>' +
+                        field("Target", '<div class="spel-host">' +
+                            '<textarea class="form-control font-monospace" id="pd-policy-target" rows="4" ' +
+                            'placeholder="SpringEL predicate"></textarea></div>' +
                             '<div class="form-text">If this predicate is true, the policy rules are evaluated.</div>') +
                         field("Apply", '<select class="form-select" id="pd-policy-apply">' + optionsHtml(applyOptions) + "</select>" +
                             '<div class="form-text">Rule combiner used when the target matches.</div>') +
@@ -545,6 +989,10 @@ window.CadminPdsPolicyDetail = (function () {
                 '<div class="col-lg-6">' + card("Related artifacts", "pds-artifact-rows",
                     ["Type", "Display", ""], "#pd-artifact-modal", "Add") + "</div>" +
             "</div>" +
+            viewModal("pd-yaml-modal", "Generated YAML",
+                '<div class="yaml-preview-host">' +
+                    '<textarea id="pd-yaml-preview" class="form-control font-monospace" readonly></textarea>' +
+                "</div>") +
             modal("pd-basic-modal", "Edit basic details",
                 field("Title", '<input class="form-control" id="pd-title" required>') +
                 field("Status", '<select class="form-select" id="pd-status">' + optionsHtml(statusOptions) + "</select>") +
@@ -615,11 +1063,21 @@ window.CadminPdsPolicyDetail = (function () {
     }
 
     function renderOnTargetRows(statements) {
+        $("#pd-policy-ontarget .pd-ontarget-row").each(function () {
+            const cm = $(this).data("cm");
+            if (cm) {
+                cm.toTextArea();
+                $(this).removeData("cm");
+            }
+        });
         if (!statements || !statements.length) {
             $("#pd-policy-ontarget").html('<div class="text-muted small" id="pd-ontarget-empty">No on-target statements.</div>');
             return;
         }
         $("#pd-policy-ontarget").html(statements.map(onTargetRowHtml).join(""));
+        $("#pd-policy-ontarget .pd-ontarget-row").each(function () {
+            attachOnTargetEditor($(this));
+        });
     }
 
     function refreshImportSelects() {
@@ -633,6 +1091,7 @@ window.CadminPdsPolicyDetail = (function () {
     }
 
     function renderPolicyEditor() {
+        teardownSpelEditors();
         const policy = readPolicyDocument();
         $("#pd-policy-id").val(policy.id);
         $("#pd-policy-description").val(policy.description);
@@ -643,6 +1102,7 @@ window.CadminPdsPolicyDetail = (function () {
         $("#pd-policy-apply").val(policy.apply || "deny-overrides");
         renderImportRows(policy.imports);
         renderOnTargetRows(policy.onTarget);
+        targetEditor = attachSpelEditor(document.getElementById("pd-policy-target"), "6.5rem");
     }
 
     function loadImportChoices() {
@@ -1009,11 +1469,18 @@ window.CadminPdsPolicyDetail = (function () {
 
         $root.on("click.pdsdetail", "#pd-policy-ontarget-add", function () {
             $("#pd-ontarget-empty").remove();
-            $("#pd-policy-ontarget").append(onTargetRowHtml(""));
+            const $row = $(onTargetRowHtml(""));
+            $("#pd-policy-ontarget").append($row);
+            attachOnTargetEditor($row);
         });
 
         $root.on("click.pdsdetail", "[data-ontarget-remove]", function () {
-            $(this).closest(".pd-ontarget-row").remove();
+            const $row = $(this).closest(".pd-ontarget-row");
+            const cm = $row.data("cm");
+            if (cm) {
+                cm.toTextArea();
+            }
+            $row.remove();
             if (!$("#pd-policy-ontarget .pd-ontarget-row").length) {
                 renderOnTargetRows([]);
             }
@@ -1021,16 +1488,7 @@ window.CadminPdsPolicyDetail = (function () {
 
         $("#pd-policy-form").on("submit", function (event) {
             event.preventDefault();
-            const policy = {
-                id: ($("#pd-policy-id").val() || "").trim(),
-                description: ($("#pd-policy-description").val() || "").trim(),
-                version: ($("#pd-policy-version").val() || "").trim(),
-                status: $("#pd-policy-status").val() || "draft",
-                imports: collectImports(($("#pd-policy-id").val() || "").trim()),
-                target: ($("#pd-policy-target").val() || "").trim(),
-                apply: $("#pd-policy-apply").val() || "deny-overrides",
-                onTarget: collectOnTarget()
-            };
+            const policy = collectPolicyForm();
             if (!policy.id) {
                 alertMsg("danger", "Policy ID is required.");
                 return;
@@ -1040,6 +1498,9 @@ window.CadminPdsPolicyDetail = (function () {
                 alertMsg("success", "Policy content saved.");
             });
         });
+
+        $("#pd-yaml-modal").on("shown.bs.modal", showGeneratedYaml);
+        $("#pd-yaml-modal").on("hidden.bs.modal", teardownYamlPreview);
 
         $("#pd-artifact-form").on("submit", function (event) {
             event.preventDefault();

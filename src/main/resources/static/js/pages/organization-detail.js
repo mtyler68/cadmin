@@ -135,9 +135,13 @@ window.CadminOrganizationDetail = (function () {
         alertMsg("danger", action + " failed (" + xhr.status + ").");
     }
 
-    function fillSelect(selector, path, labelFn, excludeId) {
+    function currentCode(cc) {
+        const item = Array.isArray(cc) ? cc[0] : cc;
+        return item && item.coding && item.coding[0] ? item.coding[0].code : "";
+    }
+
+    function fillSelect(selector, path, labelFn, excludeId, selectedId) {
         const $select = $(selector);
-        const previous = $select.val();
         CadminApi.fhir(path).done(function (bundle) {
             const options = ['<option value="">None</option>'].concat(bundleResources(bundle)
                 .filter(function (resource) { return resource.id !== excludeId; })
@@ -145,8 +149,8 @@ window.CadminOrganizationDetail = (function () {
                     return '<option value="' + esc(resource.id) + '">' + esc(labelFn(resource)) + "</option>";
                 }));
             $select.html(options.join(""));
-            if (previous && $select.find('option[value="' + previous + '"]').length) {
-                $select.val(previous);
+            if (selectedId && $select.find('option[value="' + selectedId + '"]').length) {
+                $select.val(selectedId);
             }
         });
     }
@@ -166,6 +170,16 @@ window.CadminOrganizationDetail = (function () {
                     "</table>" +
                 "</div>" +
             "</div>" +
+        "</div>";
+    }
+
+    function editCard(title, bodyId, editTarget) {
+        return '<div class="card shadow mb-4">' +
+            '<div class="card-header py-3 d-flex justify-content-between align-items-center">' +
+                "<h6 class=\"m-0\">" + title + "</h6>" +
+                '<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="' + editTarget + '">Edit</button>' +
+            "</div>" +
+            '<div class="card-body" id="' + bodyId + '"></div>' +
         "</div>";
     }
 
@@ -202,10 +216,7 @@ window.CadminOrganizationDetail = (function () {
                     '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
             "</div>" +
             '<div id="org-detail-alert" class="alert d-none"></div>' +
-            '<div class="card shadow mb-4">' +
-                '<div class="card-header py-3"><h6 class="m-0">Basic details</h6></div>' +
-                '<div class="card-body" id="org-basic-details"></div>' +
-            "</div>" +
+            editCard("Basic details", "org-basic-details", "#od-basic-modal") +
             '<div class="row">' +
                 '<div class="col-lg-6">' + card("Sub-organizations", "org-child-rows",
                     ["Name", "Type", "Status", ""], "#od-child-modal", "Add") + "</div>" +
@@ -224,6 +235,27 @@ window.CadminOrganizationDetail = (function () {
                 '<div class="col-lg-6">' + card("Practitioners", "org-role-rows",
                     ["Practitioner", "Role", "Status", ""], "#od-role-modal", "Add") + "</div>" +
             "</div>" +
+            modal("od-basic-modal", "Edit basic details",
+                field("Name", '<input class="form-control" id="od-name" required>') +
+                '<div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="od-active">' +
+                    '<label class="form-check-label" for="od-active">Active</label></div>' +
+                field("Type", '<select class="form-select" id="od-type">' + optionsHtml(typeOptions, "code", "display") + "</select>") +
+                field("Part of", '<select class="form-select" id="od-part-of"><option value="">None</option></select>') +
+                field("Alias", '<input class="form-control" id="od-alias" placeholder="Comma-separated">') +
+                '<div class="row"><div class="col-md-6 mb-3"><label class="form-label">Identifier system</label>' +
+                    '<input class="form-control" id="od-id-system"></div>' +
+                    '<div class="col-md-6 mb-3"><label class="form-label">Identifier value</label>' +
+                    '<input class="form-control" id="od-id-value"></div></div>' +
+                '<div class="row"><div class="col-md-6 mb-3"><label class="form-label">Phone</label>' +
+                    '<input class="form-control" id="od-phone"></div>' +
+                    '<div class="col-md-6 mb-3"><label class="form-label">Email</label>' +
+                    '<input class="form-control" id="od-email" type="email"></div></div>' +
+                field("Street", '<input class="form-control" id="od-line">') +
+                '<div class="row"><div class="col-md-6 mb-3"><label class="form-label">City</label><input class="form-control" id="od-city"></div>' +
+                '<div class="col-md-6 mb-3"><label class="form-label">State</label><input class="form-control" id="od-state"></div></div>' +
+                '<div class="row"><div class="col-md-6 mb-0"><label class="form-label">Postal code</label><input class="form-control" id="od-postal"></div>' +
+                '<div class="col-md-6 mb-0"><label class="form-label">Country</label><input class="form-control" id="od-country"></div></div>',
+                "od-basic-form") +
             modal("od-child-modal", "Add sub-organization",
                 field("Name", '<input class="form-control" id="od-child-name" required>') +
                 field("Type", '<select class="form-select" id="od-child-type">' + optionsHtml(typeOptions, "code", "display") + "</select>"),
@@ -269,6 +301,12 @@ window.CadminOrganizationDetail = (function () {
         loadRoles();
         bindForms();
 
+        $("#od-basic-modal").on("show.bs.modal", function () {
+            populateBasicForm();
+            fillSelect("#od-part-of", "/Organization?_count=200&_sort=name", function (item) {
+                return item.name || item.id;
+            }, org.id, refId(org.partOf));
+        });
         $("#od-affil-modal").on("show.bs.modal", function () {
             fillSelect("#od-affil-org", "/Organization?_count=200&_sort=name", function (item) {
                 return item.name || item.id;
@@ -303,6 +341,7 @@ window.CadminOrganizationDetail = (function () {
                 '<dt class="col-sm-3">ID</dt><dd class="col-sm-9"><code>' + esc(org.id) + "</code></dd>" +
             "</dl>"
         );
+        $(".page-title").first().text(org.name || "Organization");
     }
 
     function loadChildren() {
@@ -477,7 +516,7 @@ window.CadminOrganizationDetail = (function () {
 
     function saveOrg(next) {
         CadminApi.fhir("/Organization/" + encodeURIComponent(org.id), "PUT", org).done(function (updated) {
-            org = updated;
+            org = updated || org;
             renderBasics();
             renderContacts();
             if (next) {
@@ -490,6 +529,43 @@ window.CadminOrganizationDetail = (function () {
 
     function typeByCode(code) {
         return typeOptions.find(function (option) { return option.code === code; });
+    }
+
+    function telecomValue(system) {
+        const item = (org.telecom || []).find(function (entry) { return entry.system === system; });
+        return item && item.value ? item.value : "";
+    }
+
+    function setTelecom(system, value) {
+        org.telecom = (org.telecom || []).filter(function (entry) { return entry.system !== system; });
+        if (value) {
+            org.telecom.push({ system: system, value: value });
+        }
+        if (!org.telecom.length) {
+            delete org.telecom;
+        }
+    }
+
+    function populateBasicForm() {
+        const identifier = (org.identifier && org.identifier[0]) || {};
+        const address = (org.address && org.address[0]) || {};
+        const typeCode = currentCode(org.type);
+        $("#od-name").val(org.name || "");
+        $("#od-active").prop("checked", org.active !== false);
+        if (typeCode && !$("#od-type option[value='" + typeCode + "']").length) {
+            $("#od-type").append('<option value="' + esc(typeCode) + '">' + esc(conceptLabel(org.type)) + "</option>");
+        }
+        $("#od-type").val(typeCode);
+        $("#od-alias").val((org.alias || []).join(", "));
+        $("#od-id-system").val(identifier.system || "");
+        $("#od-id-value").val(identifier.value || "");
+        $("#od-phone").val(telecomValue("phone"));
+        $("#od-email").val(telecomValue("email"));
+        $("#od-line").val((address.line || [])[0] || "");
+        $("#od-city").val(address.city || "");
+        $("#od-state").val(address.state || "");
+        $("#od-postal").val(address.postalCode || "");
+        $("#od-country").val(address.country || "");
     }
 
     function bindForms() {
@@ -527,6 +603,94 @@ window.CadminOrganizationDetail = (function () {
             org.contact = (org.contact || []).filter(function (_item, i) { return i !== index; });
             saveOrg(function () {
                 alertMsg("success", "Contact removed.");
+            });
+        });
+
+        $("#od-basic-form").on("submit", function (event) {
+            event.preventDefault();
+            org.name = $("#od-name").val().trim();
+            org.active = $("#od-active").is(":checked");
+            const selected = typeByCode($("#od-type").val());
+            if (selected && selected.code) {
+                org.type = [{
+                    coding: [{
+                        system: "http://terminology.hl7.org/CodeSystem/organization-type",
+                        code: selected.code,
+                        display: selected.display
+                    }],
+                    text: selected.display
+                }];
+            } else if (!$("#od-type").val()) {
+                delete org.type;
+            }
+            const partOfId = $("#od-part-of").val();
+            if (partOfId) {
+                org.partOf = {
+                    reference: "Organization/" + partOfId,
+                    display: $("#od-part-of option:selected").text()
+                };
+            } else {
+                delete org.partOf;
+            }
+            const aliases = $("#od-alias").val().split(",").map(function (item) {
+                return item.trim();
+            }).filter(Boolean);
+            if (aliases.length) {
+                org.alias = aliases;
+            } else {
+                delete org.alias;
+            }
+            const idSystem = $("#od-id-system").val().trim();
+            const idValue = $("#od-id-value").val().trim();
+            if (idValue) {
+                const identifier = { value: idValue };
+                if (idSystem) {
+                    identifier.system = idSystem;
+                }
+                org.identifier = [identifier].concat((org.identifier || []).slice(1));
+            } else if (idSystem) {
+                alertMsg("danger", "Enter an identifier value.");
+                return;
+            } else if (org.identifier && org.identifier.length) {
+                org.identifier = org.identifier.slice(1);
+                if (!org.identifier.length) {
+                    delete org.identifier;
+                }
+            }
+            setTelecom("phone", $("#od-phone").val().trim());
+            setTelecom("email", $("#od-email").val().trim());
+            const address = {};
+            const line = $("#od-line").val().trim();
+            const city = $("#od-city").val().trim();
+            const state = $("#od-state").val().trim();
+            const postal = $("#od-postal").val().trim();
+            const country = $("#od-country").val().trim();
+            if (line) {
+                address.line = [line];
+            }
+            if (city) {
+                address.city = city;
+            }
+            if (state) {
+                address.state = state;
+            }
+            if (postal) {
+                address.postalCode = postal;
+            }
+            if (country) {
+                address.country = country;
+            }
+            if (Object.keys(address).length) {
+                org.address = [address].concat((org.address || []).slice(1));
+            } else if (org.address && org.address.length) {
+                org.address = org.address.slice(1);
+                if (!org.address.length) {
+                    delete org.address;
+                }
+            }
+            saveOrg(function () {
+                hideModal("od-basic-modal");
+                alertMsg("success", "Basic details updated.");
             });
         });
 

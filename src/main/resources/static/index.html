@@ -10,6 +10,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2.3.0/dist/iconify-icon.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.css">
     <link href="/css/cadmin.css" rel="stylesheet">
 </head>
 <body id="page-top">
@@ -38,6 +39,9 @@
         </li>
         <hr class="sidebar-divider">
         <div class="sidebar-heading">Clinical data</div>
+        <li class="nav-item" data-route="devices">
+            <a class="nav-link" href="#/devices"><iconify-icon icon="mdi:devices" aria-hidden="true"></iconify-icon><span>Devices</span></a>
+        </li>
         <hr class="sidebar-divider admin-only">
         <div class="sidebar-heading admin-only">Groups</div>
         <li class="nav-item admin-only" data-route="organizations">
@@ -121,6 +125,12 @@
 
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/addon/display/placeholder.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/addon/edit/matchbrackets.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/addon/search/searchcursor.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/addon/search/match-highlighter.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/yaml/yaml.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/app.js"></script>
 <script src="/js/pages/dashboard.js"></script>
@@ -129,6 +139,8 @@
 <script src="/js/pages/caregivers.js"></script>
 <script src="/js/pages/practitioner-detail.js"></script>
 <script src="/js/pages/practitioners.js"></script>
+<script src="/js/pages/device-detail.js"></script>
+<script src="/js/pages/devices.js"></script>
 <script src="/js/pages/organization-detail.js"></script>
 <script src="/js/pages/organizations.js"></script>
 <script src="/js/pages/care-teams.js"></script>

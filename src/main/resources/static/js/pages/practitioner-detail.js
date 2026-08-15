@@ -125,13 +125,32 @@ window.CadminPractitionerDetail = (function () {
         alertMsg("danger", action + " failed (" + xhr.status + ").");
     }
 
-    function fillSelect(selector, path, labelFn) {
+    function fhirWrite(path, method, resource, onSuccess, failAction) {
+        CadminApi.fhir(path, method, resource).done(function (body, _status, xhr) {
+            onSuccess(body, xhr);
+        }).fail(function (xhr) {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                onSuccess(xhr.responseJSON, xhr);
+                return;
+            }
+            fail(failAction, xhr);
+        });
+    }
+
+    function createdResourceId(xhr, resourceType) {
+        const header = (xhr && (xhr.getResponseHeader("Location") || xhr.getResponseHeader("Content-Location"))) || "";
+        const match = header.match(new RegExp(resourceType + "/([^/?#]+)"));
+        return match ? decodeURIComponent(match[1]) : "";
+    }
+
+    function fillSelect(selector, path, labelFn, placeholder) {
         const $select = $(selector);
         const previous = $select.val();
         CadminApi.fhir(path).done(function (bundle) {
-            const options = ['<option value="">None</option>'].concat(bundleResources(bundle).map(function (resource) {
-                return '<option value="' + esc(resource.id) + '">' + esc(labelFn(resource)) + "</option>";
-            }));
+            const options = ['<option value="">' + esc(placeholder || "None") + "</option>"]
+                .concat(bundleResources(bundle).map(function (resource) {
+                    return '<option value="' + esc(resource.id) + '">' + esc(labelFn(resource)) + "</option>";
+                }));
             $select.html(options.join(""));
             if (previous && $select.find('option[value="' + previous + '"]').length) {
                 $select.val(previous);
@@ -230,8 +249,12 @@ window.CadminPractitionerDetail = (function () {
                     ["Language", ""], "#prd-lang-modal", "Add") + "</div>" +
             "</div>" +
             (isAdmin()
-                ? '<div class="row"><div class="col-lg-12">' + card("Organization roles", "prd-role-rows",
-                    ["Organization", "Location", "Role", "Status", ""], "#prd-role-modal", "Add") + "</div></div>"
+                ? '<div class="row">' +
+                    '<div class="col-lg-6">' + card("Organization roles", "prd-role-rows",
+                        ["Organization", "Location", "Role", "Status", ""], "#prd-role-modal", "Add") + "</div>" +
+                    '<div class="col-lg-6">' + card("Care teams", "prd-team-rows",
+                        ["Patient", "Care team", "Role", ""], "#prd-team-modal", "Add") + "</div>" +
+                "</div>"
                 : "") +
             modal("prd-basic-modal", "Edit basic details",
                 field("Prefix", '<input class="form-control" id="prd-prefix" placeholder="Dr">') +
@@ -273,7 +296,28 @@ window.CadminPractitionerDetail = (function () {
                     field("Organization", '<select class="form-select" id="prd-role-org" required><option value="">Select…</option></select>') +
                     field("Location", '<select class="form-select" id="prd-role-loc"><option value="">None</option></select>') +
                     field("Role", '<select class="form-select" id="prd-role-code">' + optionsHtml(practitionerRoles) + "</select>"),
-                    "prd-role-form")
+                    "prd-role-form") +
+                  modal("prd-team-modal", "Add to care team",
+                    '<div class="mb-3">' +
+                        '<label class="form-label">Membership</label>' +
+                        '<div class="form-check">' +
+                            '<input class="form-check-input" type="radio" name="prd-ct-mode" id="prd-ct-mode-existing" value="existing" checked>' +
+                            '<label class="form-check-label" for="prd-ct-mode-existing">Existing care team</label>' +
+                        "</div>" +
+                        '<div class="form-check">' +
+                            '<input class="form-check-input" type="radio" name="prd-ct-mode" id="prd-ct-mode-new" value="new">' +
+                            '<label class="form-check-label" for="prd-ct-mode-new">New care team</label>' +
+                        "</div>" +
+                    "</div>" +
+                    '<div id="prd-ct-existing-wrap">' +
+                        field("Care team", '<select class="form-select" id="prd-ct-team"><option value="">Select…</option></select>') +
+                    "</div>" +
+                    '<div id="prd-ct-new-wrap" class="d-none">' +
+                        field("Patient", '<select class="form-select" id="prd-ct-patient"><option value="">Select…</option></select>') +
+                        field("Care team name", '<input class="form-control" id="prd-ct-name" placeholder="e.g. Home care team">') +
+                    "</div>" +
+                    field("Role", '<select class="form-select" id="prd-ct-role">' + optionsHtml(practitionerRoles) + "</select>"),
+                    "prd-team-form")
                 : "")
         );
 
@@ -286,6 +330,7 @@ window.CadminPractitionerDetail = (function () {
         bindForms();
         if (isAdmin()) {
             loadRoles();
+            loadCareTeams();
             $("#prd-role-modal").on("show.bs.modal", function () {
                 fillSelect("#prd-role-org", "/Organization?_count=200&_sort=name", function (org) {
                     return org.name || org.id;
@@ -293,6 +338,14 @@ window.CadminPractitionerDetail = (function () {
                 fillSelect("#prd-role-loc", "/Location?_count=200&_sort=name", function (loc) {
                     return loc.name || loc.id;
                 });
+            });
+            $("#prd-team-modal").on("show.bs.modal", function () {
+                $("#prd-ct-mode-existing").prop("checked", true);
+                toggleCareTeamMode();
+                $("#prd-ct-name").val("");
+                $("#prd-ct-role").val("doctor");
+                loadExistingTeamOptions();
+                fillSelect("#prd-ct-patient", "/Patient?_count=200&_sort=name", personName, "Select…");
             });
         }
     }
@@ -373,6 +426,150 @@ window.CadminPractitionerDetail = (function () {
                 '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove="communication" data-index="' +
                 index + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
         }).join(""));
+    }
+
+    function isThisPractitioner(ref) {
+        const reference = ((ref && ref.reference) || "").replace(/\/$/, "");
+        return reference === "Practitioner/" + practitioner.id
+            || reference.endsWith("/Practitioner/" + practitioner.id);
+    }
+
+    function practitionerParticipant(team) {
+        return (team.participant || []).find(function (item) {
+            return isThisPractitioner(item.member);
+        });
+    }
+
+    function participantRole(team) {
+        const item = practitionerParticipant(team);
+        return item ? conceptLabel(item.role) : "—";
+    }
+
+    function renderCareTeamRows(teams, patients) {
+        if (!teams.length) {
+            $("#prd-team-rows").html(emptyRow(4, "No care teams."));
+            return;
+        }
+        $("#prd-team-rows").html(teams.map(function (team) {
+            const patientId = refId(team.subject);
+            const patient = patients[patientId];
+            const patientLabel = patient ? personName(patient) : refLabel(team.subject);
+            const patientHtml = patientId
+                ? '<a href="#/resources/Patient/' + encodeURIComponent(patientId) + '">' + esc(patientLabel) + "</a>"
+                : esc(patientLabel || "—");
+            const teamHtml = '<a href="#/resources/CareTeam/' + encodeURIComponent(team.id) + '">' +
+                esc(team.name || team.id) + "</a>";
+            return "<tr><td>" + patientHtml + "</td><td>" + teamHtml + "</td><td>" + esc(participantRole(team)) + "</td>" +
+                '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove-team="' +
+                esc(team.id) + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
+        }).join(""));
+    }
+
+    function teamsFromBundle(bundle) {
+        const patients = {};
+        const teams = [];
+        bundleResources(bundle).forEach(function (resource) {
+            if (resource.resourceType === "Patient") {
+                patients[resource.id] = resource;
+            } else if (resource.resourceType === "CareTeam" && practitionerParticipant(resource)) {
+                teams.push(resource);
+            }
+        });
+        return { patients: patients, teams: teams };
+    }
+
+    function loadCareTeams(ensureId) {
+        function apply(bundle) {
+            const parsed = teamsFromBundle(bundle);
+            if (ensureId && !parsed.teams.some(function (team) { return team.id === ensureId; })) {
+                CadminApi.fhir("/CareTeam/" + encodeURIComponent(ensureId)).done(function (team) {
+                    parsed.teams.push(team);
+                    renderCareTeamRows(parsed.teams, parsed.patients);
+                }).fail(function () {
+                    renderCareTeamRows(parsed.teams, parsed.patients);
+                });
+                return;
+            }
+            renderCareTeamRows(parsed.teams, parsed.patients);
+        }
+
+        CadminApi.fhir("/CareTeam?_count=200&_include=CareTeam:subject").done(apply).fail(function () {
+            CadminApi.fhir("/CareTeam?_count=200").done(apply).fail(function (xhr) {
+                $("#prd-team-rows").html(emptyRow(4, "Unable to load care teams."));
+                fail("Load care teams", xhr);
+            });
+        });
+    }
+
+    function toggleCareTeamMode() {
+        const isNew = $("#prd-ct-mode-new").is(":checked");
+        $("#prd-ct-existing-wrap").toggleClass("d-none", isNew);
+        $("#prd-ct-new-wrap").toggleClass("d-none", !isNew);
+        $("#prd-ct-team").prop("required", !isNew);
+        $("#prd-ct-patient").prop("required", isNew);
+        $("#prd-ct-name").prop("required", isNew);
+    }
+
+    function loadExistingTeamOptions() {
+        const $team = $("#prd-ct-team");
+        $team.html('<option value="">Select…</option>');
+        CadminApi.fhir("/CareTeam?_count=200&_include=CareTeam:subject").done(function (bundle) {
+            const patients = {};
+            const teams = [];
+            bundleResources(bundle).forEach(function (resource) {
+                if (resource.resourceType === "Patient") {
+                    patients[resource.id] = resource;
+                } else if (resource.resourceType === "CareTeam") {
+                    teams.push(resource);
+                }
+            });
+            teams.sort(function (a, b) {
+                return (a.name || a.id || "").localeCompare(b.name || b.id || "");
+            });
+            teams.forEach(function (team) {
+                if (practitionerParticipant(team)) {
+                    return;
+                }
+                const patient = patients[refId(team.subject)];
+                const patientLabel = patient ? personName(patient) : refLabel(team.subject);
+                const label = (team.name || team.id) +
+                    (patientLabel && patientLabel !== "—" ? " — " + patientLabel : "");
+                $team.append('<option value="' + esc(team.id) + '">' + esc(label) + "</option>");
+            });
+        }).fail(function () {
+            CadminApi.fhir("/CareTeam?_count=200").done(function (bundle) {
+                bundleResources(bundle).filter(function (resource) {
+                    return resource.resourceType === "CareTeam" && !practitionerParticipant(resource);
+                }).sort(function (a, b) {
+                    return (a.name || a.id || "").localeCompare(b.name || b.id || "");
+                }).forEach(function (team) {
+                    const patientLabel = refLabel(team.subject);
+                    const label = (team.name || team.id) +
+                        (patientLabel && patientLabel !== "—" ? " — " + patientLabel : "");
+                    $team.append('<option value="' + esc(team.id) + '">' + esc(label) + "</option>");
+                });
+            });
+        });
+    }
+
+    function participantPayload(role) {
+        const participant = {
+            member: {
+                reference: "Practitioner/" + practitioner.id,
+                display: personName(practitioner)
+            }
+        };
+        if (role) {
+            participant.role = [{
+                coding: [{
+                    system: "http://terminology.hl7.org/CodeSystem/practitioner-role",
+                    code: role.code,
+                    display: role.display
+                }],
+                text: role.display
+            }];
+        }
+        return participant;
     }
 
     function loadRoles() {
@@ -459,6 +656,30 @@ window.CadminPractitionerDetail = (function () {
             }).fail(function (xhr) {
                 fail("Remove role", xhr);
             });
+        });
+
+        $root.on("click.prdetail", "[data-remove-team]", function () {
+            const id = $(this).attr("data-remove-team");
+            CadminApi.fhir("/CareTeam/" + encodeURIComponent(id)).done(function (team) {
+                team.participant = (team.participant || []).filter(function (item) {
+                    return !isThisPractitioner(item.member);
+                });
+                fhirWrite("/CareTeam/" + encodeURIComponent(id), "PUT", team, function () {
+                    alertMsg("success", "Removed from care team.");
+                    loadCareTeams();
+                }, "Remove from care team");
+            }).fail(function (xhr) {
+                fail("Remove from care team", xhr);
+            });
+        });
+
+        $root.on("change.prdetail", "input[name='prd-ct-mode']", toggleCareTeamMode);
+
+        $root.on("change.prdetail", "#prd-ct-patient", function () {
+            const patientName = $("#prd-ct-patient option:selected").text();
+            if (!$("#prd-ct-name").val() && patientName && patientName !== "Select…") {
+                $("#prd-ct-name").val(patientName + " care team");
+            }
         });
 
         $("#prd-basic-modal").on("show.bs.modal", function () {
@@ -653,6 +874,65 @@ window.CadminPractitionerDetail = (function () {
             }).fail(function (xhr) {
                 fail("Add role", xhr);
             });
+        });
+
+        $("#prd-team-form").on("submit", function (event) {
+            event.preventDefault();
+            const isNew = $("#prd-ct-mode-new").is(":checked");
+            const role = practitionerRoles.find(function (item) { return item.code === $("#prd-ct-role").val(); });
+            const participant = participantPayload(role);
+
+            function done(teamId) {
+                hideModal("prd-team-modal");
+                alertMsg("success", isNew ? "Care team created." : "Added to care team.");
+                loadCareTeams(teamId);
+            }
+
+            if (!isNew) {
+                const teamId = $("#prd-ct-team").val();
+                if (!teamId) {
+                    alertMsg("danger", "Select an existing care team.");
+                    return;
+                }
+                CadminApi.fhir("/CareTeam/" + encodeURIComponent(teamId)).done(function (team) {
+                    team.participant = team.participant || [];
+                    if (practitionerParticipant(team)) {
+                        alertMsg("danger", "This practitioner is already on that care team.");
+                        return;
+                    }
+                    team.participant.push(participant);
+                    fhirWrite("/CareTeam/" + encodeURIComponent(teamId), "PUT", team, function () {
+                        done(teamId);
+                    }, "Add to care team");
+                }).fail(function (xhr) {
+                    fail("Add to care team", xhr);
+                });
+                return;
+            }
+
+            const patientId = $("#prd-ct-patient").val();
+            const teamName = ($("#prd-ct-name").val() || "").trim();
+            if (!patientId) {
+                alertMsg("danger", "Select a patient.");
+                return;
+            }
+            if (!teamName) {
+                alertMsg("danger", "Enter a care team name.");
+                return;
+            }
+            const resource = {
+                resourceType: "CareTeam",
+                status: "active",
+                name: teamName,
+                subject: {
+                    reference: "Patient/" + patientId,
+                    display: $("#prd-ct-patient option:selected").text()
+                },
+                participant: [participant]
+            };
+            fhirWrite("/CareTeam", "POST", resource, function (created, xhr) {
+                done((created && created.id) || createdResourceId(xhr, "CareTeam"));
+            }, "Create care team");
         });
     }
 
