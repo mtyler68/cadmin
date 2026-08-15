@@ -27,7 +27,8 @@ window.CadminApi = (function ($) {
             headers: $.extend({ "X-Requested-With": "XMLHttpRequest" }, csrfHeaders()),
             xhrFields: { withCredentials: true }
         }, options)).fail(function (xhr) {
-            if (xhr.status === 401 && !options.skipAuthRedirect && options.url !== "/login") {
+            if (xhr.status === 401 && !options.skipAuthRedirect
+                    && options.url !== "/login" && options.url !== "/api/auth/login") {
                 window.location.href = "/login.html";
             }
         });
@@ -52,7 +53,7 @@ window.CadminApi = (function ($) {
 
     function login(username, password) {
         return ajax({
-            url: "/api/auth/login",
+            url: "/login",
             method: "POST",
             skipAuthRedirect: true,
             data: JSON.stringify({ username: username, password: password }),

@@ -7,7 +7,6 @@ import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
@@ -21,7 +20,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.logout.RedirectServerLogoutSuccessHandler;
 import org.springframework.security.web.server.authentication.logout.ServerLogoutSuccessHandler;
-import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -31,14 +29,7 @@ public class LocalSecurityConfig {
     @Bean
     SecurityWebFilterChain localSecurityFilterChain(ServerHttpSecurity http) {
         SecuritySupport.common(http)
-                .formLogin(form -> form
-                        .loginPage("/login.html")
-                        // WebFlux defaults the processing URL to loginPage ("/login.html").
-                        // The SPA posts to /login, so pin the matcher or login returns 401.
-                        .requiresAuthenticationMatcher(
-                                ServerWebExchangeMatchers.pathMatchers(HttpMethod.POST, "/login"))
-                        .authenticationSuccessHandler(AjaxAuthenticationHandlers.successHandler())
-                        .authenticationFailureHandler(AjaxAuthenticationHandlers.failureHandler()))
+                .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .logout(logout -> logout
                         .requiresLogout(SecuritySupport.logoutMatcher())
                         .logoutSuccessHandler(localLogoutSuccessHandler()));

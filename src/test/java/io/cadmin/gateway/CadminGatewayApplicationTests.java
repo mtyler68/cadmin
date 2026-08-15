@@ -79,13 +79,26 @@ class CadminGatewayApplicationTests {
     void adminCanSignInViaFormLogin() {
         webTestClient.post()
                 .uri("/login")
-                .header("X-Requested-With", "XMLHttpRequest")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("username", "admin").with("password", "admin"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.authenticated").isEqualTo(true);
+                .jsonPath("$.authenticated").isEqualTo(true)
+                .jsonPath("$.username").isEqualTo("admin");
+    }
+
+    @Test
+    void adminCanSignInViaJsonLoginAtRoot() {
+        webTestClient.post()
+                .uri("/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"username\":\"admin\",\"password\":\"admin\"}")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.authenticated").isEqualTo(true)
+                .jsonPath("$.username").isEqualTo("admin");
     }
 
     @Test
