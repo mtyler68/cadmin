@@ -1,0 +1,15 @@
+cadmin:
+  security:
+    mode: local
+    users:
+      - username: admin
+        password: admin
+        roles:
+          - ADMIN
+          - USER
+      - username: clinician
+        password: clinician
+        roles:
+          - USER
+  fhir:
+    uri: http://127.0.0.1:9

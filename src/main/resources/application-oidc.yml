@@ -1,0 +1,37 @@
+cadmin:
+  security:
+    mode: oidc
+    oidc:
+      post-logout-redirect-uri: "{baseUrl}/login.html"
+
+spring:
+  security:
+    oauth2:
+      client:
+        provider:
+          keycloak:
+            issuer-uri: ${CADMIN_OIDC_ISSUER:http://localhost:8180/realms/cadmin}
+            user-name-attribute: preferred_username
+        registration:
+          keycloak:
+            provider: keycloak
+            client-id: ${CADMIN_OIDC_CLIENT_ID:cadmin-gateway}
+            client-secret: ${CADMIN_OIDC_CLIENT_SECRET:cadmin-gateway-secret}
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - openid
+              - profile
+              - email
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: hapi-fhir
+              uri: ${cadmin.fhir.uri}
+              predicates:
+                - Path=/fhir/**
+              filters:
+                - TokenRelay=
+                - RemoveRequestHeader=Cookie

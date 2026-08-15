@@ -1,0 +1,8 @@
+cadmin:
+  security:
+    mode: local
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.security.oauth2.client.autoconfigure.reactive.ReactiveOAuth2ClientWebSecurityAutoConfiguration
