@@ -15,6 +15,7 @@ hapi:
     fhir_version: R5
     server_id_strategy: UUID
     client_id_strategy: ANY
+    allow_cascading_deletes: true
     openapi_enabled: true
     cors:
       allow_Credentials: true

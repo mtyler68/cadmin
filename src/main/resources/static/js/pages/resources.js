@@ -37,7 +37,7 @@ CadminApp.register("resources", function (params) {
         }
         const path = resourceId
             ? "/" + encodeURIComponent(resourceType) + "/" + encodeURIComponent(resourceId)
-            : "/" + encodeURIComponent(resourceType) + "?_count=20&_sort=-_lastUpdated";
+            : "/" + encodeURIComponent(resourceType) + "?_count=20&_sort=-_lastUpdated&_total=accurate";
         $("#resource-json").text("Loading…");
         CadminApi.fhir(path).done(function (body) {
             $("#resource-json").text(JSON.stringify(body, null, 2));

@@ -127,7 +127,7 @@ window.CadminDemoData = (function () {
         if (!n || n < 1) {
             return 1;
         }
-        return n > 25 ? 25 : n;
+        return n > 250 ? 250 : n;
     }
 
     function createRng(seed) {

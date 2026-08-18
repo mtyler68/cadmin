@@ -197,6 +197,7 @@ window.CadminApi = (function ($) {
         const base = qIndex >= 0 ? text.slice(0, qIndex) : text;
         const params = new URLSearchParams(qIndex >= 0 ? text.slice(qIndex + 1) : "");
         params.set("_count", String(size));
+        params.set("_total", "accurate");
         if (page > 0) {
             params.set("_offset", String(page * size));
         } else {

@@ -196,7 +196,7 @@ CadminApp.register("dashboard", function () {
             .always(finish);
 
         featured.forEach(function (metric) {
-            CadminApi.fhir("/" + encodeURIComponent(metric.type) + "?_summary=count&_count=0")
+            CadminApi.fhir("/" + encodeURIComponent(metric.type) + "?_summary=count&_count=0&_total=accurate")
                 .done(function (bundle) {
                     if (typeof bundle.total === "number") {
                         live[metric.type] = bundle.total;

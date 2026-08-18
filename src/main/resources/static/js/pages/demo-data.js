@@ -45,7 +45,7 @@ CadminApp.register("demo-data", function () {
                     '<input class="form-check-input demo-type" type="checkbox" id="demo-type-' + item.key +
                         '" data-key="' + item.key + '"' + (entry.enabled ? " checked" : "") + ">" +
                 "</div></td>" +
-                '<td style="max-width:7rem"><input class="form-control form-control-sm demo-count" type="number" min="1" max="25" ' +
+                '<td style="max-width:7rem"><input class="form-control form-control-sm demo-count" type="number" min="1" max="250" ' +
                     'id="demo-count-' + item.key + '" data-key="' + item.key + '" value="' + entry.count + '"' +
                     (entry.enabled ? "" : " disabled") + "></td>" +
                 "</tr>";
@@ -359,7 +359,7 @@ CadminApp.register("demo-data", function () {
         let total = 0;
         types.forEach(function (type) {
             CadminApi.fhir("/" + type + "?_tag=" + encodeURIComponent(CadminDemoData.tagToken()) +
-                    "&_count=1").done(function (bundle) {
+                    "&_count=1&_total=accurate").done(function (bundle) {
                 const n = typeof bundle.total === "number" ? bundle.total : ((bundle.entry || []).length);
                 counts[type] = n;
                 total += n;
@@ -403,7 +403,7 @@ CadminApp.register("demo-data", function () {
                     }
                     const resource = resources[index];
                     index += 1;
-                    CadminApi.fhir("/" + type + "/" + encodeURIComponent(resource.id), "DELETE")
+                    CadminApi.fhir("/" + type + "/" + encodeURIComponent(resource.id) + "?_cascade=delete", "DELETE")
                         .always(function () {
                             deleted += 1;
                             next();
