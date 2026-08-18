@@ -552,13 +552,18 @@ window.CadminDeviceDetail = (function () {
         });
 
         $("#dd-assign-modal").on("show.bs.modal", function () {
-            fillSelect("#dd-patient", "/Patient?_count=200&_sort=name", personName, null,
-                refId(association && association.subject));
+            CadminApi.bindPatientSelect("#dd-patient", {
+                placeholder: "None",
+                selectedId: refId(association && association.subject),
+                selectedLabel: refLabel(association && association.subject)
+            });
             fillSelect("#dd-parent", "/Device?_count=200", deviceLabel, device.id, refId(device.parent));
             if (CadminApp.isAdmin()) {
-                fillSelect("#dd-owner", "/Organization?_count=200&_sort=name", function (org) {
-                    return org.name || org.id;
-                }, null, refId(device.owner));
+                CadminApi.bindOrganizationSelect("#dd-owner", {
+                    placeholder: "None",
+                    selectedId: refId(device.owner),
+                    selectedLabel: refLabel(device.owner)
+                });
                 fillSelect("#dd-location", "/Location?_count=200&_sort=name", function (loc) {
                     return loc.name || loc.id;
                 }, null, refId(device.location));
@@ -601,13 +606,13 @@ window.CadminDeviceDetail = (function () {
 
         $("#dd-assign-form").on("submit", function (event) {
             event.preventDefault();
-            const patientId = $("#dd-patient").val();
-            const patientDisplay = $("#dd-patient option:selected").text();
+            const patientId = CadminApi.selectValue("#dd-patient");
+            const patientDisplay = CadminApi.selectLabel("#dd-patient");
             setReference(device, "parent", $("#dd-parent").val(), "Device",
                 $("#dd-parent option:selected").text());
             if (CadminApp.isAdmin()) {
-                setReference(device, "owner", $("#dd-owner").val(), "Organization",
-                    $("#dd-owner option:selected").text());
+                setReference(device, "owner", CadminApi.selectValue("#dd-owner"), "Organization",
+                    CadminApi.selectLabel("#dd-owner"));
                 setReference(device, "location", $("#dd-location").val(), "Location",
                     $("#dd-location option:selected").text());
             }

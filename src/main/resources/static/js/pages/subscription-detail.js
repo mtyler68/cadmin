@@ -458,16 +458,10 @@ window.CadminSubscriptionDetail = (function () {
     }
 
     function fillOrgSelect(selectedId) {
-        const $select = $("#sd-org");
-        CadminApi.fhir("/Organization?_count=200&_sort=name").done(function (bundle) {
-            const orgs = CadminApi.bundleResources(bundle, "Organization");
-            const options = ['<option value="">None</option>'].concat(orgs.map(function (org) {
-                return '<option value="' + esc(org.id) + '">' + esc(org.name || org.id) + "</option>";
-            }));
-            $select.html(options.join(""));
-            if (selectedId) {
-                $select.val(selectedId);
-            }
+        CadminApi.bindOrganizationSelect("#sd-org", {
+            placeholder: "None",
+            selectedId: selectedId || "",
+            selectedLabel: selectedId ? refLabel(subscription.managingEntity) : ""
         });
     }
 
@@ -556,7 +550,7 @@ window.CadminSubscriptionDetail = (function () {
             const name = $("#sd-name").val().trim();
             const reason = $("#sd-reason").val().trim();
             const topic = $("#sd-topic").val();
-            const orgId = $("#sd-org").val();
+            const orgId = CadminApi.selectValue("#sd-org");
             if (!topic) {
                 CadminApi.showToast("danger", "Select a subscription topic.");
                 return;
@@ -565,10 +559,9 @@ window.CadminSubscriptionDetail = (function () {
             if (reason) { subscription.reason = reason; } else { delete subscription.reason; }
             subscription.topic = topic;
             if (orgId) {
-                const label = $("#sd-org option:selected").text();
                 subscription.managingEntity = {
                     reference: "Organization/" + orgId,
-                    display: label
+                    display: CadminApi.selectLabel("#sd-org")
                 };
             } else {
                 delete subscription.managingEntity;

@@ -37,6 +37,7 @@ CadminApp.register("dashboard", function () {
                     '<div class="card-header py-3"><h6 class="m-0">Quick actions</h6></div>' +
                     '<div class="card-body">' +
                         '<a class="btn btn-primary me-2 mb-2" href="#/patients">Browse patients</a>' +
+                        '<a class="btn btn-outline-primary me-2 mb-2" href="#/flags">Browse flags</a>' +
                         '<a class="btn btn-outline-primary me-2 mb-2" href="#/resources">Open FHIR browser</a>' +
                         '<a class="btn btn-outline-primary me-2 mb-2" href="#/capabilities">FHIR capabilities</a>' +
                         (CadminApp.isAdmin()
@@ -79,6 +80,7 @@ CadminApp.register("dashboard", function () {
         { type: "RelatedPerson", label: "Caregivers", href: "#/caregivers", icon: "bi-person-heart", border: "info" },
         { type: "Practitioner", label: "Practitioners", href: "#/practitioners", iconify: "mdi:doctor", border: "success" },
         { type: "Device", label: "Devices", href: "#/devices", iconify: "mdi:devices", border: "warning" },
+        { type: "Flag", label: "Flags", href: "#/flags", icon: "bi-flag", border: "danger" },
         { type: "Organization", label: "Organizations", href: "#/organizations", icon: "bi-building", border: "primary", admin: true },
         { type: "Location", label: "Locations", href: "#/locations", icon: "bi-geo-alt", border: "info", admin: true },
         { type: "CareTeam", label: "Care teams", href: "#/care-teams", icon: "bi-people-fill", border: "success", admin: true },

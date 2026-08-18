@@ -23,7 +23,7 @@ CadminApp.register("search-parameters", function (params) {
         "MedicationRequest", "DiagnosticReport", "DocumentReference", "Library",
         "SearchParameter", "Questionnaire", "ValueSet", "CodeSystem", "Appointment",
         "Coverage", "Device", "DeviceAssociation", "CareTeam", "Group", "HealthcareService",
-        "RelatedPerson", "Task", "Subscription", "SubscriptionTopic", "Consent"
+        "RelatedPerson", "Task", "Subscription", "SubscriptionTopic", "Consent", "Flag"
     ];
     const $root = $("#app-content");
     $root.html(
@@ -125,10 +125,13 @@ CadminApp.register("search-parameters", function (params) {
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("search-parameters");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = CadminApi.bundleResources(bundle, "SearchParameter");
             CadminApi.renderPager("#search-parameter-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "search-parameters",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,

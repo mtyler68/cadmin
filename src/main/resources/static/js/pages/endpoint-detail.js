@@ -372,9 +372,11 @@ window.CadminEndpointDetail = (function () {
         $("#ed-description").val(endpoint.description || "");
         $("#ed-period-start").val((endpoint.period && endpoint.period.start) || "");
         $("#ed-period-end").val((endpoint.period && endpoint.period.end) || "");
-        fillSelect("#ed-org", "/Organization?_count=200&_sort=name", function (org) {
-            return org.name || org.id;
-        }, refId(endpoint.managingOrganization));
+        CadminApi.bindOrganizationSelect("#ed-org", {
+            placeholder: "None",
+            selectedId: refId(endpoint.managingOrganization),
+            selectedLabel: refLabel(endpoint.managingOrganization)
+        });
     }
 
     function unlinkUsers(done) {
@@ -481,11 +483,11 @@ window.CadminEndpointDetail = (function () {
                     }]
                 }];
             }
-            const orgId = $("#ed-org").val();
+            const orgId = CadminApi.selectValue("#ed-org");
             if (orgId) {
                 endpoint.managingOrganization = {
                     reference: "Organization/" + orgId,
-                    display: $("#ed-org option:selected").text()
+                    display: CadminApi.selectLabel("#ed-org")
                 };
             } else {
                 delete endpoint.managingOrganization;

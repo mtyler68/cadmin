@@ -380,17 +380,21 @@ window.CadminOrganizationDetail = (function () {
 
         $("#od-basic-modal").on("show.bs.modal", function () {
             populateBasicForm();
-            fillSelect("#od-part-of", "/Organization?_count=200&_sort=name", function (item) {
-                return item.name || item.id;
-            }, org.id, refId(org.partOf));
+            CadminApi.bindOrganizationSelect("#od-part-of", {
+                placeholder: "None",
+                excludeId: org.id,
+                selectedId: refId(org.partOf),
+                selectedLabel: refLabel(org.partOf)
+            });
         });
         $("#od-affil-modal").on("show.bs.modal", function () {
-            fillSelect("#od-affil-org", "/Organization?_count=200&_sort=name", function (item) {
-                return item.name || item.id;
-            }, org.id);
+            CadminApi.bindOrganizationSelect("#od-affil-org", {
+                placeholder: "None",
+                excludeId: org.id
+            });
         });
         $("#od-role-modal").on("show.bs.modal", function () {
-            fillSelect("#od-pr-practitioner", "/Practitioner?_count=200&_sort=name", personName);
+            CadminApi.bindPractitionerSelect("#od-pr-practitioner", { placeholder: "Select…" });
         });
         $("#od-ep-attach-modal").on("show.bs.modal", fillEndpointAttach);
         $("#od-role-edit-modal").on("show.bs.modal", populateRoleEditForm);
@@ -867,11 +871,11 @@ window.CadminOrganizationDetail = (function () {
             } else if (!$("#od-type").val()) {
                 delete org.type;
             }
-            const partOfId = $("#od-part-of").val();
+            const partOfId = CadminApi.selectValue("#od-part-of");
             if (partOfId) {
                 org.partOf = {
                     reference: "Organization/" + partOfId,
-                    display: $("#od-part-of option:selected").text()
+                    display: CadminApi.selectLabel("#od-part-of")
                 };
             } else {
                 delete org.partOf;
@@ -995,7 +999,7 @@ window.CadminOrganizationDetail = (function () {
 
         $("#od-affil-form").on("submit", function (event) {
             event.preventDefault();
-            const otherId = $("#od-affil-org").val();
+            const otherId = CadminApi.selectValue("#od-affil-org");
             if (!otherId) {
                 return;
             }
@@ -1006,7 +1010,7 @@ window.CadminOrganizationDetail = (function () {
                 organization: { reference: "Organization/" + org.id, display: org.name },
                 participatingOrganization: {
                     reference: "Organization/" + otherId,
-                    display: $("#od-affil-org option:selected").text()
+                    display: CadminApi.selectLabel("#od-affil-org")
                 }
             };
             if (role) {
@@ -1125,7 +1129,7 @@ window.CadminOrganizationDetail = (function () {
 
         $("#od-role-form").on("submit", function (event) {
             event.preventDefault();
-            const existingId = $("#od-pr-practitioner").val();
+            const existingId = CadminApi.selectValue("#od-pr-practitioner");
             const family = $("#od-pr-family").val();
             const given = $("#od-pr-given").val();
             const role = practitionerRoles.find(function (item) { return item.code === $("#od-pr-role").val(); });
@@ -1156,7 +1160,7 @@ window.CadminOrganizationDetail = (function () {
             }
 
             if (existingId) {
-                createRole(existingId, $("#od-pr-practitioner option:selected").text());
+                createRole(existingId, CadminApi.selectLabel("#od-pr-practitioner"));
                 return;
             }
             if (!family && !given) {

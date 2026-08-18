@@ -149,20 +149,7 @@ function renderDeviceList(initialQuery) {
     }
 
     function fillPatientSelect() {
-        const $select = $("#dev-patient");
-        const previous = $select.val();
-        CadminApi.fhir("/Patient?_count=200&_sort=name").done(function (bundle) {
-            const options = ['<option value="">None</option>'].concat((bundle.entry || []).map(function (e) {
-                return e.resource;
-            }).filter(Boolean).map(function (resource) {
-                return '<option value="' + CadminApi.escapeHtml(resource.id) + '">' +
-                    CadminApi.escapeHtml(personName(resource)) + "</option>";
-            }));
-            $select.html(options.join(""));
-            if (previous && $select.find('option[value="' + previous + '"]').length) {
-                $select.val(previous);
-            }
-        });
+        CadminApi.bindPatientSelect("#dev-patient", { placeholder: "None" });
     }
 
     function createdId(body, xhr, resourceType) {
@@ -182,7 +169,8 @@ function renderDeviceList(initialQuery) {
         if (query) {
             path += "&device-name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("devices");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const resources = CadminApi.bundleResources(bundle);
             const associations = {};
             resources.forEach(function (resource) {
@@ -198,6 +186,8 @@ function renderDeviceList(initialQuery) {
             });
             CadminApi.renderPager("#device-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "devices",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,
@@ -239,8 +229,8 @@ function renderDeviceList(initialQuery) {
 
     $("#create-device-form").on("submit", function (event) {
         event.preventDefault();
-        const patientId = $("#dev-patient").val();
-        const patientDisplay = $("#dev-patient option:selected").text();
+        const patientId = CadminApi.selectValue("#dev-patient");
+        const patientDisplay = CadminApi.selectLabel("#dev-patient");
         const resource = {
             resourceType: "Device",
             status: $("#dev-status").val() || "active",

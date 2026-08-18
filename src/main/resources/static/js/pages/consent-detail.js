@@ -299,6 +299,15 @@ window.CadminConsentDetail = (function () {
         const type = $(typeSelect).val() || refType(selectedRef) || "Patient";
         $(typeSelect).val(type);
         const spec = partyTypes.find(function (item) { return item.type === type; }) || partyTypes[0];
+        CadminApi.destroySelect(resourceSelect);
+        if (CadminApi.bindFhirSelect) {
+            CadminApi.bindFhirSelect(resourceSelect, spec.type, {
+                placeholder: "Select…",
+                selectedId: refId(selectedRef),
+                selectedLabel: refLabel(selectedRef)
+            });
+            return;
+        }
         fillRefSelect(resourceSelect, spec.path, spec.type,
             spec.person ? personName : function (resource) { return resource.name || resource.id; },
             "Select…", refId(selectedRef));
@@ -306,13 +315,13 @@ window.CadminConsentDetail = (function () {
 
     function selectedPartyRef(typeSelect, resourceSelect) {
         const type = $(typeSelect).val();
-        const id = $(resourceSelect).val();
+        const id = CadminApi.selectValue(resourceSelect);
         if (!type || !id) {
             return null;
         }
         return {
             reference: type + "/" + id,
-            display: $(resourceSelect + " option:selected").text()
+            display: CadminApi.selectLabel(resourceSelect)
         };
     }
 
@@ -718,10 +727,16 @@ window.CadminConsentDetail = (function () {
             $("#cd-att-url").val(attachment.url || "");
             $("#cd-policy-url").val((consent.policyBasis && consent.policyBasis.url) || "");
             $("#cd-verified").prop("checked", !!verification.verified);
-            fillRefSelect("#cd-verified-with", "/Patient?_count=200&_sort=name", "Patient", personName,
-                "None", refId(verification.verifiedWith));
-            fillRefSelect("#cd-verified-by", "/Organization?_count=200&_sort=name", "Organization",
-                function (org) { return org.name || org.id; }, "None", refId(verification.verifiedBy));
+            CadminApi.bindPatientSelect("#cd-verified-with", {
+                placeholder: "None",
+                selectedId: refId(verification.verifiedWith),
+                selectedLabel: refLabel(verification.verifiedWith)
+            });
+            CadminApi.bindOrganizationSelect("#cd-verified-by", {
+                placeholder: "None",
+                selectedId: refId(verification.verifiedBy),
+                selectedLabel: refLabel(verification.verifiedBy)
+            });
             const verifiedDate = (verification.verificationDate && verification.verificationDate[0]) || "";
             $("#cd-verified-date").val(verifiedDate ? verifiedDate.slice(0, 16) : "");
         });
@@ -902,21 +917,21 @@ window.CadminConsentDetail = (function () {
                 delete consent.policyBasis;
             }
             const verified = $("#cd-verified").is(":checked");
-            const verifiedWith = $("#cd-verified-with").val();
-            const verifiedBy = $("#cd-verified-by").val();
+            const verifiedWith = CadminApi.selectValue("#cd-verified-with");
+            const verifiedBy = CadminApi.selectValue("#cd-verified-by");
             const verifiedDate = $("#cd-verified-date").val();
             if (verified || verifiedWith || verifiedBy || verifiedDate) {
                 const verification = { verified: verified };
                 if (verifiedWith) {
                     verification.verifiedWith = {
                         reference: "Patient/" + verifiedWith,
-                        display: $("#cd-verified-with option:selected").text()
+                        display: CadminApi.selectLabel("#cd-verified-with")
                     };
                 }
                 if (verifiedBy) {
                     verification.verifiedBy = {
                         reference: "Organization/" + verifiedBy,
-                        display: $("#cd-verified-by option:selected").text()
+                        display: CadminApi.selectLabel("#cd-verified-by")
                     };
                 }
                 if (verifiedDate) {

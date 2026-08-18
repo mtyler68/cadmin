@@ -402,20 +402,25 @@ window.CadminCareTeamDetail = (function () {
             $("#ctd-name").val(team.name || "");
             $("#ctd-status").val(team.status || "active");
             $("#ctd-category").val(currentCode(team.category) || "");
-            fillSelect("#ctd-patient", "/Patient?_count=200&_sort=name", personName, "None",
-                refId(team.subject));
-            fillSelect("#ctd-org", "/Organization?_count=200&_sort=name", function (org) {
-                return org.name || org.id;
-            }, "None", refId(team.managingOrganization));
+            CadminApi.bindPatientSelect("#ctd-patient", {
+                placeholder: "None",
+                selectedId: refId(team.subject),
+                selectedLabel: refLabel(team.subject)
+            });
+            CadminApi.bindOrganizationSelect("#ctd-org", {
+                placeholder: "None",
+                selectedId: refId(team.managingOrganization),
+                selectedLabel: refLabel(team.managingOrganization)
+            });
         });
 
         $("#ctd-caregiver-modal").on("show.bs.modal", function () {
-            fillSelect("#ctd-cg-person", "/RelatedPerson?_count=200&_sort=name", personName, "Select…");
+            CadminApi.bindCaregiverSelect("#ctd-cg-person", { placeholder: "Select…" });
             $("#ctd-cg-role").val("CARGVR");
         });
 
         $("#ctd-practitioner-modal").on("show.bs.modal", function () {
-            fillSelect("#ctd-pr-person", "/Practitioner?_count=200&_sort=name", personName, "Select…");
+            CadminApi.bindPractitionerSelect("#ctd-pr-person", { placeholder: "Select…" });
             $("#ctd-pr-role").val("doctor");
         });
 
@@ -433,20 +438,20 @@ window.CadminCareTeamDetail = (function () {
             } else {
                 delete team.category;
             }
-            const patientId = $("#ctd-patient").val();
+            const patientId = CadminApi.selectValue("#ctd-patient");
             if (patientId) {
                 team.subject = {
                     reference: "Patient/" + patientId,
-                    display: $("#ctd-patient option:selected").text()
+                    display: CadminApi.selectLabel("#ctd-patient")
                 };
             } else {
                 delete team.subject;
             }
-            const orgId = $("#ctd-org").val();
+            const orgId = CadminApi.selectValue("#ctd-org");
             if (orgId) {
                 team.managingOrganization = [{
                     reference: "Organization/" + orgId,
-                    display: $("#ctd-org option:selected").text()
+                    display: CadminApi.selectLabel("#ctd-org")
                 }];
             } else {
                 delete team.managingOrganization;
@@ -459,13 +464,13 @@ window.CadminCareTeamDetail = (function () {
 
         $("#ctd-caregiver-form").on("submit", function (event) {
             event.preventDefault();
-            const id = $("#ctd-cg-person").val();
+            const id = CadminApi.selectValue("#ctd-cg-person");
             if (!id) {
                 alertMsg("danger", "Select a caregiver.");
                 return;
             }
             const role = caregiverRoles.find(function (item) { return item.code === $("#ctd-cg-role").val(); });
-            addParticipant(participantFrom("RelatedPerson", id, $("#ctd-cg-person option:selected").text(),
+            addParticipant(participantFrom("RelatedPerson", id, CadminApi.selectLabel("#ctd-cg-person"),
                 role, "http://terminology.hl7.org/CodeSystem/v3-RoleCode"), function () {
                 hideModal("ctd-caregiver-modal");
                 alertMsg("success", "Caregiver added.");
@@ -474,13 +479,13 @@ window.CadminCareTeamDetail = (function () {
 
         $("#ctd-practitioner-form").on("submit", function (event) {
             event.preventDefault();
-            const id = $("#ctd-pr-person").val();
+            const id = CadminApi.selectValue("#ctd-pr-person");
             if (!id) {
                 alertMsg("danger", "Select a practitioner.");
                 return;
             }
             const role = practitionerRoles.find(function (item) { return item.code === $("#ctd-pr-role").val(); });
-            addParticipant(participantFrom("Practitioner", id, $("#ctd-pr-person option:selected").text(),
+            addParticipant(participantFrom("Practitioner", id, CadminApi.selectLabel("#ctd-pr-person"),
                 role, "http://terminology.hl7.org/CodeSystem/practitioner-role"), function () {
                 hideModal("ctd-practitioner-modal");
                 alertMsg("success", "Practitioner added.");

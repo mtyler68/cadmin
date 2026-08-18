@@ -73,6 +73,9 @@ CadminApp.register("demo-data", function () {
         if (normalized.counts.organization) {
             extras.push("Endpoint");
         }
+        if (normalized.counts.patient) {
+            extras.push("Flag");
+        }
         if (CadminDemoData.PRIMARY_TYPES.some(function (entry) {
             return normalized.counts[entry.key] > 0;
         })) {

@@ -174,16 +174,7 @@ function renderPatientList(initialQuery) {
     }
 
     function fillOrganizationSelect() {
-        const $select = $("#ct-organization");
-        CadminApi.fhir("/Organization?_count=200&_sort=name").done(function (bundle) {
-            const options = ['<option value="">None</option>'].concat((bundle.entry || []).map(function (e) {
-                return e.resource;
-            }).filter(Boolean).map(function (org) {
-                return '<option value="' + CadminApi.escapeHtml(org.id) + '">' +
-                    CadminApi.escapeHtml(org.name || org.id) + "</option>";
-            }));
-            $select.html(options.join(""));
-        });
+        CadminApi.bindOrganizationSelect("#ct-organization", { placeholder: "None" });
     }
 
     function openCareTeamDialog(patient) {
@@ -192,7 +183,6 @@ function renderPatientList(initialQuery) {
         $("#ct-name").val(patient.name + " care team");
         $("#ct-status").val("active");
         $("#ct-category").val("");
-        $("#ct-organization").html('<option value="">None</option>');
         fillOrganizationSelect();
         showModal("create-care-team-modal");
     }
@@ -211,10 +201,13 @@ function renderPatientList(initialQuery) {
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("patients");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = CadminApi.bundleResources(bundle, "Patient");
             CadminApi.renderPager("#patient-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "patients",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,
@@ -325,11 +318,11 @@ function renderPatientList(initialQuery) {
                 display: $("#ct-patient-name").val()
             };
         }
-        const organizationId = $("#ct-organization").val();
+        const organizationId = CadminApi.selectValue("#ct-organization");
         if (organizationId) {
             resource.managingOrganization = [{
                 reference: "Organization/" + organizationId,
-                display: $("#ct-organization option:selected").text()
+                display: CadminApi.selectLabel("#ct-organization")
             }];
         }
         CadminApi.fhir("/CareTeam", "POST", resource).done(function () {

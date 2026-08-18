@@ -172,9 +172,7 @@ function renderPractitionerList(initialQuery) {
         $("#pr-role-practitioner-name").val(practitioner.name);
         $("#pr-role-code").val("doctor");
         $("#pr-role-active").prop("checked", true);
-        fillSelect("#pr-role-org", "/Organization?_count=200&_sort=name", function (org) {
-            return org.name || org.id;
-        }, "Select…");
+        CadminApi.bindOrganizationSelect("#pr-role-org", { placeholder: "Select…" });
         fillSelect("#pr-role-loc", "/Location?_count=200&_sort=name", function (loc) {
             return loc.name || loc.id;
         }, "None");
@@ -205,10 +203,13 @@ function renderPractitionerList(initialQuery) {
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("practitioners");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = CadminApi.bundleResources(bundle, "Practitioner");
             CadminApi.renderPager("#practitioner-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "practitioners",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,
@@ -282,7 +283,7 @@ function renderPractitionerList(initialQuery) {
     $("#create-practitioner-role-form").on("submit", function (event) {
         event.preventDefault();
         const practitionerId = $("#pr-role-practitioner").val();
-        const organizationId = $("#pr-role-org").val();
+        const organizationId = CadminApi.selectValue("#pr-role-org");
         if (!practitionerId) {
             CadminApi.showToast("danger", "Practitioner is missing.");
             return;
@@ -301,7 +302,7 @@ function renderPractitionerList(initialQuery) {
             },
             organization: {
                 reference: "Organization/" + organizationId,
-                display: $("#pr-role-org option:selected").text()
+                display: CadminApi.selectLabel("#pr-role-org")
             }
         };
         const locationId = $("#pr-role-loc").val();

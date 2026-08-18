@@ -139,6 +139,7 @@ window.CadminApi = (function ($) {
         RelatedPerson: "#/caregivers/",
         Practitioner: "#/practitioners/",
         Device: "#/devices/",
+        Flag: "#/flags/",
         Organization: "#/organizations/",
         CareTeam: "#/care-teams/",
         Location: "#/locations/",
@@ -187,7 +188,34 @@ window.CadminApi = (function ($) {
         return match ? decodeId(match[1]) : "";
     }
 
-    const PAGE_SIZE = 20;
+    const PAGE_SIZE = 10;
+    const PAGE_SIZES = [5, 10, 20, 50];
+    const PAGE_SIZE_STORE = "cadmin.pageSize.";
+
+    function listPageSize(key, next) {
+        const name = String(key || "").trim();
+        if (!name) {
+            return PAGE_SIZE;
+        }
+        if (next != null) {
+            const size = PAGE_SIZES.indexOf(Number(next)) !== -1 ? Number(next) : PAGE_SIZE;
+            try {
+                localStorage.setItem(PAGE_SIZE_STORE + name, String(size));
+            } catch (ignore) {
+                // private mode
+            }
+            return size;
+        }
+        try {
+            const stored = Number(localStorage.getItem(PAGE_SIZE_STORE + name));
+            if (PAGE_SIZES.indexOf(stored) !== -1) {
+                return stored;
+            }
+        } catch (ignore) {
+            // private mode
+        }
+        return PAGE_SIZE;
+    }
 
     function pagedPath(path, page, size) {
         size = size || PAGE_SIZE;
@@ -271,14 +299,15 @@ window.CadminApi = (function ($) {
     function renderPager(selector, options) {
         const opts = options || {};
         const page = Math.max(0, opts.page || 0);
-        const size = opts.size || PAGE_SIZE;
+        const sizeKey = opts.pageSizeKey || "";
+        const size = opts.size || (sizeKey ? listPageSize(sizeKey) : PAGE_SIZE);
         const returned = opts.returned || 0;
         const total = typeof opts.total === "number" ? opts.total : undefined;
         const $el = $(selector);
         if (!$el.length) {
             return;
         }
-        if (!returned && page === 0) {
+        if (!returned && page === 0 && !sizeKey) {
             $el.empty();
             return;
         }
@@ -288,9 +317,11 @@ window.CadminApi = (function ($) {
             : bundleHasNext(opts.bundle, page, returned, size, total);
         const start = page * size + (returned ? 1 : 0);
         const end = page * size + returned;
-        const label = typeof total === "number"
-            ? "Showing " + start + "–" + end + " of " + total
-            : "Showing " + start + "–" + end;
+        const label = !returned && page === 0
+            ? (typeof total === "number" ? "Showing 0 of " + total : "Showing 0")
+            : typeof total === "number"
+                ? "Showing " + start + "–" + end + " of " + total
+                : "Showing " + start + "–" + end;
         let numbers = "";
         if (typeof total === "number" && total > 0) {
             const pageCount = Math.max(1, Math.ceil(total / size));
@@ -303,19 +334,43 @@ window.CadminApi = (function ($) {
         } else {
             numbers = pagerButton(page, String(page + 1), false, true);
         }
+        const sizeControl = sizeKey
+            ? '<label class="small text-muted mb-0 d-flex align-items-center gap-2">' +
+                '<span>Per page</span>' +
+                '<select class="form-select form-select-sm" data-page-size aria-label="Results per page">' +
+                    PAGE_SIZES.map(function (option) {
+                        return '<option value="' + option + '"' + (option === size ? " selected" : "") +
+                            ">" + option + "</option>";
+                    }).join("") +
+                "</select></label>"
+            : "";
         $el.html(
             '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">' +
-                '<div class="text-muted small">' + escapeHtml(label) + "</div>" +
+                '<div class="d-flex flex-wrap align-items-center gap-3">' +
+                    '<div class="text-muted small">' + escapeHtml(label) + "</div>" +
+                    sizeControl +
+                "</div>" +
                 '<nav aria-label="List pages"><ul class="pagination pagination-sm mb-0">' +
                     pagerButton(page - 1, "Previous", !hasPrev, false) +
                     numbers +
                     pagerButton(page + 1, "Next", !hasNext, false) +
                 "</ul></nav></div>"
         );
-        $el.off("click.pager").on("click.pager", "button[data-page]", function () {
+        $el.off("click.pager change.pager");
+        $el.on("click.pager", "button[data-page]", function () {
             const nextPage = parseInt($(this).attr("data-page"), 10);
             if (!isNaN(nextPage) && typeof opts.onPage === "function") {
                 opts.onPage(nextPage);
+            }
+        });
+        $el.on("change.pager", "[data-page-size]", function () {
+            listPageSize(sizeKey, $(this).val());
+            if (typeof opts.onPageSize === "function") {
+                opts.onPageSize(listPageSize(sizeKey));
+                return;
+            }
+            if (typeof opts.onPage === "function") {
+                opts.onPage(0);
             }
         });
     }
@@ -358,7 +413,9 @@ window.CadminApi = (function ($) {
         consentCategory: "http://hl7.org/fhir/ValueSet/consent-category",
         consentAction: "http://hl7.org/fhir/ValueSet/consent-action",
         consentPolicy: "http://hl7.org/fhir/ValueSet/consent-policy",
-        consentDataMeaning: "http://hl7.org/fhir/ValueSet/consent-data-meaning"
+        consentDataMeaning: "http://hl7.org/fhir/ValueSet/consent-data-meaning",
+        flagStatus: "http://hl7.org/fhir/ValueSet/flag-status",
+        flagCategory: "http://hl7.org/fhir/ValueSet/flag-category"
     };
 
     const valueSetCache = {};
@@ -500,6 +557,223 @@ window.CadminApi = (function ($) {
         return match ? match.display : (code || "—");
     }
 
+    const FHIR_SELECT_PAGE = 20;
+    const FHIR_SELECT_TYPES = {
+        Organization: { type: "Organization", noun: "organizations" },
+        Patient: { type: "Patient", noun: "patients" },
+        Practitioner: { type: "Practitioner", noun: "practitioners" },
+        RelatedPerson: { type: "RelatedPerson", noun: "caregivers" }
+    };
+
+    function selectElement(selector) {
+        return typeof selector === "string" ? document.querySelector(selector) : selector;
+    }
+
+    function destroySelect(selector) {
+        const el = selectElement(selector);
+        if (el && el.tomselect) {
+            el.tomselect.destroy();
+        }
+    }
+
+    function destroySelects(root) {
+        const scope = typeof root === "string" ? document.querySelector(root) : (root || document);
+        if (!scope || !scope.querySelectorAll) {
+            return;
+        }
+        Array.prototype.forEach.call(scope.querySelectorAll("select"), function (el) {
+            if (el.tomselect) {
+                el.tomselect.destroy();
+            }
+        });
+    }
+
+    function selectValue(selector) {
+        const el = selectElement(selector);
+        if (el && el.tomselect) {
+            return el.tomselect.getValue() || "";
+        }
+        return (el && el.value) || "";
+    }
+
+    function selectLabel(selector) {
+        const el = selectElement(selector);
+        if (el && el.tomselect) {
+            const value = el.tomselect.getValue();
+            if (!value) {
+                return "";
+            }
+            const opt = el.tomselect.options[value];
+            return (opt && (opt.name || opt.text)) || "";
+        }
+        if (!el || el.selectedIndex < 0) {
+            return "";
+        }
+        const selected = el.options[el.selectedIndex];
+        return selected ? String(selected.text || "").trim() : "";
+    }
+
+    function personName(resource) {
+        const name = (resource && resource.name && resource.name[0]) || {};
+        const given = (name.given || []).join(" ");
+        return [given, name.family].filter(Boolean).join(" ") || (resource && resource.id) || "Unnamed";
+    }
+
+    function fhirSelectLabel(resource) {
+        if (!resource) {
+            return "";
+        }
+        if (resource.resourceType === "Organization") {
+            return resource.name || resource.id || "";
+        }
+        if (Array.isArray(resource.name) || (resource.name && (resource.name.family || resource.name.given))) {
+            return personName(resource);
+        }
+        return resource.name || resource.id || "";
+    }
+
+    function fhirSearchPath(resourceType, query, page) {
+        let path = "/" + resourceType + "?_sort=name";
+        const q = String(query || "").trim();
+        if (q) {
+            path += "&name=" + encodeURIComponent(q);
+        }
+        return pagedPath(path, page, FHIR_SELECT_PAGE);
+    }
+
+    function pageFromSearchPath(path) {
+        const query = String(path || "");
+        const qIndex = query.indexOf("?");
+        const params = new URLSearchParams(qIndex >= 0 ? query.slice(qIndex + 1) : "");
+        const size = parseInt(params.get("_count"), 10) || FHIR_SELECT_PAGE;
+        const offset = parseInt(params.get("_offset"), 10) || 0;
+        return { page: Math.floor(offset / size), size: size };
+    }
+
+    function fhirFetch(path, signal) {
+        return fetch("/fhir" + path, {
+            credentials: "same-origin",
+            headers: $.extend({
+                "X-Requested-With": "XMLHttpRequest",
+                Accept: "application/fhir+json"
+            }, csrfHeaders()),
+            signal: signal
+        }).then(function (response) {
+            if (response.status === 401) {
+                window.location.href = "/login.html";
+                throw new Error("unauthorized");
+            }
+            if (!response.ok) {
+                throw new Error("FHIR request failed (" + response.status + ")");
+            }
+            return response.json();
+        });
+    }
+
+    function bindFhirSelect(selector, resourceType, options) {
+        const spec = FHIR_SELECT_TYPES[resourceType] || {
+            type: resourceType,
+            noun: String(resourceType || "results").toLowerCase() + "s"
+        };
+        const opts = options || {};
+        const el = selectElement(selector);
+        if (!el || typeof TomSelect !== "function") {
+            return null;
+        }
+        const placeholder = opts.placeholder || ("Search " + spec.noun + "…");
+        const previousValue = opts.selectedId !== undefined ? opts.selectedId : selectValue(el);
+        const previousLabel = opts.selectedLabel !== undefined ? opts.selectedLabel : selectLabel(el);
+        destroySelect(el);
+        el.innerHTML = '<option value="">' + escapeHtml(placeholder) + "</option>";
+        let inFlight = null;
+        const ts = new TomSelect(el, {
+            valueField: "id",
+            labelField: "name",
+            searchField: ["name"],
+            maxItems: 1,
+            maxOptions: 200,
+            preload: "focus",
+            loadThrottle: 300,
+            persist: false,
+            create: false,
+            allowEmptyOption: opts.allowEmpty !== false,
+            placeholder: placeholder,
+            plugins: ["virtual_scroll", "clear_button"],
+            dropdownParent: "body",
+            firstUrl: function (query) {
+                return fhirSearchPath(spec.type, query, 0);
+            },
+            shouldLoad: function () {
+                return true;
+            },
+            load: function (query, callback) {
+                if (inFlight) {
+                    inFlight.abort();
+                }
+                inFlight = new AbortController();
+                const url = this.getUrl(query);
+                const self = this;
+                fhirFetch(url, inFlight.signal).then(function (bundle) {
+                    const excludeId = opts.excludeId || "";
+                    const items = bundleResources(bundle, spec.type).filter(function (resource) {
+                        return resource.id !== excludeId;
+                    }).map(function (resource) {
+                        return { id: resource.id, name: fhirSelectLabel(resource) };
+                    });
+                    const parsed = pageFromSearchPath(url);
+                    if (bundleHasNext(bundle, parsed.page, items.length, parsed.size, bundle.total)) {
+                        self.setNextUrl(query, fhirSearchPath(spec.type, query, parsed.page + 1));
+                    }
+                    callback(items);
+                }).catch(function (error) {
+                    if (!error || error.name !== "AbortError") {
+                        callback();
+                    }
+                });
+            },
+            render: {
+                option: function (item, escape) {
+                    return "<div>" + escape(item.name) + "</div>";
+                },
+                item: function (item, escape) {
+                    return "<div>" + escape(item.name) + "</div>";
+                },
+                loading_more: function () {
+                    return '<div class="loading-more-results py-2 d-flex align-items-center">' +
+                        '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' +
+                        "Loading more " + spec.noun + "…</div>";
+                },
+                no_more_results: function () {
+                    return '<div class="no-more-results py-2 text-muted">No more ' + spec.noun + "</div>";
+                }
+            }
+        });
+        if (previousValue) {
+            ts.addOption({
+                id: previousValue,
+                name: previousLabel && previousLabel !== placeholder ? previousLabel : previousValue
+            });
+            ts.setValue(previousValue, true);
+        }
+        return ts;
+    }
+
+    function bindOrganizationSelect(selector, options) {
+        return bindFhirSelect(selector, "Organization", options);
+    }
+
+    function bindPatientSelect(selector, options) {
+        return bindFhirSelect(selector, "Patient", options);
+    }
+
+    function bindPractitionerSelect(selector, options) {
+        return bindFhirSelect(selector, "Practitioner", options);
+    }
+
+    function bindCaregiverSelect(selector, options) {
+        return bindFhirSelect(selector, "RelatedPerson", options);
+    }
+
     return {
         get: get,
         post: function (url, data) { return send(url, "POST", data); },
@@ -516,6 +790,8 @@ window.CadminApi = (function ($) {
         referenceId: referenceId,
         createdResourceId: createdResourceId,
         pageSize: PAGE_SIZE,
+        pageSizes: PAGE_SIZES,
+        listPageSize: listPageSize,
         pagedPath: pagedPath,
         bundleResources: bundleResources,
         renderPager: renderPager,
@@ -525,6 +801,15 @@ window.CadminApi = (function ($) {
         fillValueSetSelect: fillValueSetSelect,
         fillValueSetChecks: fillValueSetChecks,
         valueSetDisplay: valueSetDisplay,
-        geocode: geocode
+        geocode: geocode,
+        destroySelect: destroySelect,
+        destroySelects: destroySelects,
+        selectValue: selectValue,
+        selectLabel: selectLabel,
+        bindFhirSelect: bindFhirSelect,
+        bindOrganizationSelect: bindOrganizationSelect,
+        bindPatientSelect: bindPatientSelect,
+        bindPractitionerSelect: bindPractitionerSelect,
+        bindCaregiverSelect: bindCaregiverSelect
     };
 }(jQuery));

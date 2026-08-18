@@ -4,6 +4,7 @@ window.CadminResourceGraph = (function () {
         RelatedPerson: "#/caregivers/",
         Practitioner: "#/practitioners/",
         Device: "#/devices/",
+        Flag: "#/flags/",
         Organization: "#/organizations/",
         CareTeam: "#/care-teams/",
         Location: "#/locations/",
@@ -22,6 +23,7 @@ window.CadminResourceGraph = (function () {
         Location: "#e74a3b",
         CareTeam: "#858796",
         Device: "#5a5c69",
+        Flag: "#d63384",
         DeviceAssociation: "#6f42c1",
         Consent: "#fd7e14",
         Subscription: "#20c997",
@@ -573,7 +575,7 @@ window.CadminResourceGraph = (function () {
                     align: "middle",
                     size: 11,
                     color: "#858796",
-                    face: "Nunito, system-ui, sans-serif",
+                    face: "system-ui, sans-serif",
                     strokeWidth: 3,
                     strokeColor: "#fff"
                 },
@@ -731,7 +733,7 @@ window.CadminResourceGraph = (function () {
                     ? { background: "#4e73df", border: "#224abe", highlight: { background: "#224abe", border: "#224abe" } }
                     : { background: "#fff", border: color, highlight: { background: "#f8f9fc", border: color } },
                 font: {
-                    face: "Nunito, system-ui, sans-serif",
+                    face: "system-ui, sans-serif",
                     size: 13,
                     color: focus ? "#fff" : "#5a5c69",
                     bold: { color: focus ? "#fff" : "#5a5c69" }
@@ -1064,6 +1066,7 @@ window.CadminResourceGraph = (function () {
     return {
         card: card,
         mount: mount,
+        resize: resizeNetwork,
         destroy: destroy,
         detailHref: detailHref
     };

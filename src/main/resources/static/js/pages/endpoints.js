@@ -116,18 +116,7 @@ function renderEndpointList(initialQuery) {
     }
 
     function fillOrganizations() {
-        const $select = $("#ep-organization");
-        const previous = $select.val();
-        CadminApi.fhir("/Organization?_count=200&_sort=name").done(function (bundle) {
-            const options = ['<option value="">None</option>'].concat(CadminApi.bundleResources(bundle).map(function (org) {
-                return '<option value="' + CadminApi.escapeHtml(org.id) + '">' +
-                    CadminApi.escapeHtml(org.name || org.id) + "</option>";
-            }));
-            $select.html(options.join(""));
-            if (previous && $select.find('option[value="' + previous + '"]').length) {
-                $select.val(previous);
-            }
-        });
+        CadminApi.bindOrganizationSelect("#ep-organization", { placeholder: "None" });
     }
 
     let listPage = 0;
@@ -139,10 +128,13 @@ function renderEndpointList(initialQuery) {
         if (q) {
             path += (/^https?:/i.test(q) ? "&address=" : "&name=") + encodeURIComponent(q);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("endpoints");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = CadminApi.bundleResources(bundle, "Endpoint");
             CadminApi.renderPager("#endpoint-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "endpoints",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,
@@ -207,11 +199,11 @@ function renderEndpointList(initialQuery) {
                 }]
             }]
         };
-        const orgId = $("#ep-organization").val();
+        const orgId = CadminApi.selectValue("#ep-organization");
         if (orgId) {
             resource.managingOrganization = {
                 reference: "Organization/" + orgId,
-                display: $("#ep-organization option:selected").text()
+                display: CadminApi.selectLabel("#ep-organization")
             };
         }
         CadminApi.fhir("/Endpoint", "POST", resource).done(function (created) {

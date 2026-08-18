@@ -144,10 +144,13 @@ function renderQuestionnaireList(initialQuery) {
         if (query) {
             path += "&title=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("questionnaires");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = CadminApi.bundleResources(bundle, "Questionnaire");
             CadminApi.renderPager("#questionnaire-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "questionnaires",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,

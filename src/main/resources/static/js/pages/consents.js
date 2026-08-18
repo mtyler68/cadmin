@@ -184,7 +184,7 @@ function renderConsentList() {
         let path = "/Consent?_sort=-_lastUpdated";
         const status = $("#consent-status-filter").val();
         const category = $("#consent-category-filter").val();
-        const patient = $("#consent-patient-filter").val();
+        const patient = CadminApi.selectValue("#consent-patient-filter");
         if (status) {
             path += "&status=" + encodeURIComponent(status);
         }
@@ -194,10 +194,13 @@ function renderConsentList() {
         if (patient) {
             path += "&patient=" + encodeURIComponent(patient);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("consents");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = CadminApi.bundleResources(bundle, "Consent");
             CadminApi.renderPager("#consent-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "consents",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,
@@ -236,10 +239,8 @@ function renderConsentList() {
     });
 
     $("#create-consent-modal").on("show.bs.modal", function () {
-        fillRefSelect("#c-subject", "/Patient?_count=200&_sort=name", "Patient", personName, "Select patient…");
-        fillRefSelect("#c-grantee", "/Organization?_count=200&_sort=name", "Organization", function (org) {
-            return org.name || org.id;
-        }, "None");
+        CadminApi.bindPatientSelect("#c-subject", { placeholder: "Select patient…" });
+        CadminApi.bindOrganizationSelect("#c-grantee", { placeholder: "None" });
         if (!$("#c-date").val()) {
             $("#c-date").val(new Date().toISOString().slice(0, 10));
         }
@@ -247,12 +248,12 @@ function renderConsentList() {
 
     $("#create-consent-form").on("submit", function (event) {
         event.preventDefault();
-        const subjectId = $("#c-subject").val();
+        const subjectId = CadminApi.selectValue("#c-subject");
         if (!subjectId) {
             CadminApi.showToast("danger", "Select a patient.");
             return;
         }
-        const subjectDisplay = $("#c-subject option:selected").text();
+        const subjectDisplay = CadminApi.selectLabel("#c-subject");
         const categoryCoding = codingFromSelect("#c-category", categoryOptions,
             "http://terminology.hl7.org/CodeSystem/consentcategorycodes");
         const resource = {
@@ -272,11 +273,11 @@ function renderConsentList() {
         if (date) {
             resource.date = date;
         }
-        const granteeId = $("#c-grantee").val();
+        const granteeId = CadminApi.selectValue("#c-grantee");
         if (granteeId) {
             resource.grantee = [{
                 reference: "Organization/" + granteeId,
-                display: $("#c-grantee option:selected").text()
+                display: CadminApi.selectLabel("#c-grantee")
             }];
         }
         CadminApi.fhir("/Consent", "POST", resource).done(function (created, _status, xhr) {
@@ -326,7 +327,7 @@ function renderConsentList() {
         selected: "deny",
         onConcepts: function (concepts) { decisionOptions = concepts; }
     });
-    fillRefSelect("#consent-patient-filter", "/Patient?_count=200&_sort=name", "Patient", personName, "Any patient");
+    CadminApi.bindPatientSelect("#consent-patient-filter", { placeholder: "Any patient" });
 
     load(0);
 }

@@ -290,7 +290,7 @@ window.CadminCaregiverDetail = (function () {
         if (isAdmin()) {
             loadCareTeams();
             $("#cgd-team-modal").on("show.bs.modal", function () {
-                fillSelect("#cgd-ct-patient", "/Patient?_count=200&_sort=name", personName, "Select…");
+                CadminApi.bindPatientSelect("#cgd-ct-patient", { placeholder: "Select…" });
                 $("#cgd-ct-team").html('<option value="">Create new care team</option>');
                 $("#cgd-ct-name").val("");
                 $("#cgd-ct-name-wrap").removeClass("d-none");
@@ -488,7 +488,7 @@ window.CadminCaregiverDetail = (function () {
 
         $root.on("change.cgdetail", "#cgd-ct-patient", function () {
             loadTeamsForPatient($(this).val());
-            const patientName = $("#cgd-ct-patient option:selected").text();
+            const patientName = CadminApi.selectLabel("#cgd-ct-patient");
             if (!$("#cgd-ct-team").val()) {
                 $("#cgd-ct-name").val(patientName && patientName !== "Select…" ? patientName + " care team" : "");
             }
@@ -621,14 +621,14 @@ window.CadminCaregiverDetail = (function () {
 
         $("#cgd-team-form").on("submit", function (event) {
             event.preventDefault();
-            const patientId = $("#cgd-ct-patient").val();
+            const patientId = CadminApi.selectValue("#cgd-ct-patient");
             if (!patientId) {
                 alertMsg("danger", "Select a patient.");
                 return;
             }
             const role = participantRoles.find(function (item) { return item.code === $("#cgd-ct-role").val(); });
             const teamId = $("#cgd-ct-team").val();
-            const patientDisplay = $("#cgd-ct-patient option:selected").text();
+            const patientDisplay = CadminApi.selectLabel("#cgd-ct-patient");
             const participant = participantPayload(role);
 
             function done() {

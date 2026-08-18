@@ -107,18 +107,7 @@ function renderOrganizationList(initialQuery) {
     }
 
     function loadPartOfOptions() {
-        const $select = $("#org-part-of");
-        const previous = $select.val();
-        CadminApi.fhir("/Organization?_count=200&_sort=name").done(function (bundle) {
-            const options = ['<option value="">None</option>'].concat(organizationEntries(bundle).map(function (org) {
-                return '<option value="' + CadminApi.escapeHtml(org.id) + '">' +
-                    CadminApi.escapeHtml(org.name || org.id) + "</option>";
-            }));
-            $select.html(options.join(""));
-            if (previous && $select.find('option[value="' + previous + '"]').length) {
-                $select.val(previous);
-            }
-        });
+        CadminApi.bindOrganizationSelect("#org-part-of", { placeholder: "None" });
     }
 
     let listPage = 0;
@@ -129,10 +118,13 @@ function renderOrganizationList(initialQuery) {
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("organizations");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = organizationEntries(bundle);
             CadminApi.renderPager("#organization-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "organizations",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,
@@ -188,12 +180,11 @@ function renderOrganizationList(initialQuery) {
                 }]
             }];
         }
-        const partOfId = $("#org-part-of").val();
+        const partOfId = CadminApi.selectValue("#org-part-of");
         if (partOfId) {
-            const partOfName = $("#org-part-of option:selected").text();
             resource.partOf = {
                 reference: "Organization/" + partOfId,
-                display: partOfName
+                display: CadminApi.selectLabel("#org-part-of")
             };
         }
         CadminApi.fhir("/Organization", "POST", resource).done(function () {

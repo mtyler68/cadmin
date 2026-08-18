@@ -14,8 +14,8 @@ window.CadminApp = (function ($) {
     }
 
     function setActive(name) {
-        $(".sidebar .nav-item").removeClass("active");
-        $('.sidebar .nav-item[data-route="' + name + '"]').addClass("active");
+        $(".sidebar-menu .nav-link").removeClass("active");
+        $('.sidebar-menu .nav-item[data-route="' + name + '"] > .nav-link').addClass("active");
     }
 
     function isAdmin(user) {
@@ -38,6 +38,7 @@ window.CadminApp = (function ($) {
         }
         setActive(route.name);
         const view = routes[route.name] || routes.dashboard;
+        CadminApi.destroySelects("#app-content");
         $("#app-content").html('<div class="text-muted py-5 text-center">Loading…</div>');
         view(route.params);
     }
@@ -52,13 +53,6 @@ window.CadminApp = (function ($) {
     }
 
     function initChrome() {
-        $("#sidebarToggle, #sidebarToggleTop").on("click", function () {
-            if (window.innerWidth < 768) {
-                $(".sidebar").toggleClass("mobile-open");
-            } else {
-                $(".sidebar").toggleClass("toggled");
-            }
-        });
         $("#logout-link").on("click", function (event) {
             event.preventDefault();
             CadminApi.logout().always(function () {

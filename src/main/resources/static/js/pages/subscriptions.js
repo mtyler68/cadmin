@@ -200,9 +200,12 @@ function renderSubscriptionList(initialQuery) {
             path += (query.indexOf("://") >= 0 || query.indexOf("/") >= 0 ? "&topic=" : "&url=") +
                 encodeURIComponent(query);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("subscriptions");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = CadminApi.bundleResources(bundle, "Subscription");
             CadminApi.renderPager("#sub-pager", {
+                size: pageSize,
+                pageSizeKey: "subscriptions",
                 page: listPage,
                 returned: entries.length,
                 total: bundle.total,

@@ -140,9 +140,7 @@ function renderLocationList(initialQuery) {
     }
 
     function loadCreateOptions() {
-        fillSelect("#loc-organization", "/Organization?_count=200&_sort=name", function (org) {
-            return org.name || org.id;
-        });
+        CadminApi.bindOrganizationSelect("#loc-organization", { placeholder: "None" });
         fillSelect("#loc-part-of", "/Location?_count=200&_sort=name", function (loc) {
             return loc.name || loc.id;
         });
@@ -156,10 +154,13 @@ function renderLocationList(initialQuery) {
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("locations");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = CadminApi.bundleResources(bundle, "Location");
             CadminApi.renderPager("#location-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "locations",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,
@@ -214,11 +215,11 @@ function renderLocationList(initialQuery) {
                 }]
             };
         }
-        const orgId = $("#loc-organization").val();
+        const orgId = CadminApi.selectValue("#loc-organization");
         if (orgId) {
             resource.managingOrganization = {
                 reference: "Organization/" + orgId,
-                display: $("#loc-organization option:selected").text()
+                display: CadminApi.selectLabel("#loc-organization")
             };
         }
         const partOfId = $("#loc-part-of").val();

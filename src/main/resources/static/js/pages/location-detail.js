@@ -463,8 +463,10 @@ window.CadminLocationDetail = (function () {
         bindForms();
 
         $("#ld-rel-modal").on("show.bs.modal", function () {
-            fillSelect("#ld-organization", "/Organization?_count=200&_sort=name", function (org) {
-                return org.name || org.id;
+            CadminApi.bindOrganizationSelect("#ld-organization", {
+                placeholder: "None",
+                selectedId: refId(loc.managingOrganization),
+                selectedLabel: refLabel(loc.managingOrganization)
             });
             fillSelect("#ld-part-of", "/Location?_count=200&_sort=name", function (item) {
                 return item.name || item.id;
@@ -472,7 +474,7 @@ window.CadminLocationDetail = (function () {
         });
         $("#ld-ep-attach-modal").on("show.bs.modal", fillEndpointAttach);
         $("#ld-role-modal").on("show.bs.modal", function () {
-            fillSelect("#ld-pr-practitioner", "/Practitioner?_count=200&_sort=name", personName);
+            CadminApi.bindPractitionerSelect("#ld-pr-practitioner", { placeholder: "Select…" });
         });
         $("#ld-basic-modal").on("show.bs.modal", populateBasicForm);
         $("#ld-address-modal").on("show.bs.modal", populateAddressForm);
@@ -702,11 +704,7 @@ window.CadminLocationDetail = (function () {
     }
 
     function populateRelForm() {
-        const orgId = refId(loc.managingOrganization);
         const parentId = refId(loc.partOf);
-        if (orgId) {
-            $("#ld-organization").val(orgId);
-        }
         if (parentId) {
             $("#ld-part-of").val(parentId);
         }
@@ -885,11 +883,11 @@ window.CadminLocationDetail = (function () {
 
         $("#ld-rel-form").on("submit", function (event) {
             event.preventDefault();
-            const orgId = $("#ld-organization").val();
+            const orgId = CadminApi.selectValue("#ld-organization");
             if (orgId) {
                 loc.managingOrganization = {
                     reference: "Organization/" + orgId,
-                    display: $("#ld-organization option:selected").text()
+                    display: CadminApi.selectLabel("#ld-organization")
                 };
             } else {
                 delete loc.managingOrganization;
@@ -1037,7 +1035,7 @@ window.CadminLocationDetail = (function () {
 
         $("#ld-role-form").on("submit", function (event) {
             event.preventDefault();
-            const practitionerId = $("#ld-pr-practitioner").val();
+            const practitionerId = CadminApi.selectValue("#ld-pr-practitioner");
             if (!practitionerId) {
                 alertMsg("danger", "Select a practitioner.");
                 return;
@@ -1048,7 +1046,7 @@ window.CadminLocationDetail = (function () {
                 active: true,
                 practitioner: {
                     reference: "Practitioner/" + practitionerId,
-                    display: $("#ld-pr-practitioner option:selected").text()
+                    display: CadminApi.selectLabel("#ld-pr-practitioner")
                 },
                 location: [{ reference: "Location/" + loc.id, display: loc.name }]
             };

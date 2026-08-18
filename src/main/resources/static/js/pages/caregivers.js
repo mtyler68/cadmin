@@ -84,10 +84,13 @@ function renderCaregiverList(initialQuery) {
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("caregivers");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = CadminApi.bundleResources(bundle, "RelatedPerson");
             CadminApi.renderPager("#caregiver-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "caregivers",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,

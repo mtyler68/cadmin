@@ -351,7 +351,7 @@ window.CadminPractitionerDetail = (function () {
                 $("#prd-ct-name").val("");
                 $("#prd-ct-role").val("doctor");
                 loadExistingTeamOptions();
-                fillSelect("#prd-ct-patient", "/Patient?_count=200&_sort=name", personName, "Select…");
+                CadminApi.bindPatientSelect("#prd-ct-patient", { placeholder: "Select…" });
             });
         }
     }
@@ -613,9 +613,11 @@ window.CadminPractitionerDetail = (function () {
     function populateRoleForm() {
         const role = editingRole;
         $("#prd-role-modal .modal-title").text(role ? "Edit organization role" : "Add organization role");
-        fillSelect("#prd-role-org", "/Organization?_count=200&_sort=name", function (orgItem) {
-            return orgItem.name || orgItem.id;
-        }, "Select…", role ? refId(role.organization) : "");
+        CadminApi.bindOrganizationSelect("#prd-role-org", {
+            placeholder: "Select…",
+            selectedId: role ? refId(role.organization) : "",
+            selectedLabel: role ? refLabel(role.organization) : ""
+        });
         fillSelect("#prd-role-loc", "/Location?_count=200&_sort=name", function (loc) {
             return loc.name || loc.id;
         }, "None", role ? refId((role.location || [])[0]) : "");
@@ -638,7 +640,7 @@ window.CadminPractitionerDetail = (function () {
         if (organizationId) {
             resource.organization = {
                 reference: "Organization/" + organizationId,
-                display: $("#prd-role-org option:selected").text()
+                display: CadminApi.selectLabel("#prd-role-org")
             };
         } else {
             delete resource.organization;
@@ -783,7 +785,7 @@ window.CadminPractitionerDetail = (function () {
         $root.on("change.prdetail", "input[name='prd-ct-mode']", toggleCareTeamMode);
 
         $root.on("change.prdetail", "#prd-ct-patient", function () {
-            const patientName = $("#prd-ct-patient option:selected").text();
+            const patientName = CadminApi.selectLabel("#prd-ct-patient");
             if (!$("#prd-ct-name").val() && patientName && patientName !== "Select…") {
                 $("#prd-ct-name").val(patientName + " care team");
             }
@@ -940,7 +942,7 @@ window.CadminPractitionerDetail = (function () {
 
         $("#prd-role-form").on("submit", function (event) {
             event.preventDefault();
-            const organizationId = $("#prd-role-org").val();
+            const organizationId = CadminApi.selectValue("#prd-role-org");
             if (!organizationId) {
                 alertMsg("danger", "Select an organization.");
                 return;
@@ -1010,7 +1012,7 @@ window.CadminPractitionerDetail = (function () {
                 return;
             }
 
-            const patientId = $("#prd-ct-patient").val();
+            const patientId = CadminApi.selectValue("#prd-ct-patient");
             const teamName = ($("#prd-ct-name").val() || "").trim();
             if (!patientId) {
                 alertMsg("danger", "Select a patient.");
@@ -1026,7 +1028,7 @@ window.CadminPractitionerDetail = (function () {
                 name: teamName,
                 subject: {
                     reference: "Patient/" + patientId,
-                    display: $("#prd-ct-patient option:selected").text()
+                    display: CadminApi.selectLabel("#prd-ct-patient")
                 },
                 participant: [participant]
             };

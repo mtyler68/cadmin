@@ -86,6 +86,31 @@ window.CadminPatientDetail = (function () {
         { code: "deny", display: "Deny" },
         { code: "permit", display: "Permit" }
     ];
+    const flagStatuses = [
+        { code: "active", display: "Active" },
+        { code: "inactive", display: "Inactive" },
+        { code: "entered-in-error", display: "Entered in error" }
+    ];
+    const flagCategories = [
+        { code: "diet", display: "Diet", system: "http://terminology.hl7.org/CodeSystem/flag-category" },
+        { code: "drug", display: "Drug", system: "http://terminology.hl7.org/CodeSystem/flag-category" },
+        { code: "lab", display: "Lab", system: "http://terminology.hl7.org/CodeSystem/flag-category" },
+        { code: "admin", display: "Administrative", system: "http://terminology.hl7.org/CodeSystem/flag-category" },
+        { code: "contact", display: "Subject contact", system: "http://terminology.hl7.org/CodeSystem/flag-category" },
+        { code: "clinical", display: "Clinical", system: "http://terminology.hl7.org/CodeSystem/flag-category" },
+        { code: "behavioral", display: "Behavioral", system: "http://terminology.hl7.org/CodeSystem/flag-category" },
+        { code: "research", display: "Research", system: "http://terminology.hl7.org/CodeSystem/flag-category" },
+        { code: "advance-directive", display: "Advance directive",
+            system: "http://terminology.hl7.org/CodeSystem/flag-category" },
+        { code: "safety", display: "Safety", system: "http://terminology.hl7.org/CodeSystem/flag-category" }
+    ];
+    const flagCodes = [
+        { code: "fall-risk", display: "Fall risk" },
+        { code: "isolation", display: "Isolation precautions" },
+        { code: "interpreter", display: "Interpreter needed" },
+        { code: "admin-hold", display: "Administrative hold" },
+        { code: "advance-directive", display: "Advance directive on file" }
+    ];
 
     let patient = null;
     let careTeams = [];
@@ -232,6 +257,98 @@ window.CadminPatientDetail = (function () {
         "</div>";
     }
 
+    function tabButton(id, label, active) {
+        return '<li class="nav-item" role="presentation">' +
+            '<button class="nav-link' + (active ? " active" : "") + '" id="' + id + '-btn" data-bs-toggle="tab" ' +
+            'data-bs-target="#' + id + '" type="button" role="tab" aria-controls="' + id +
+            '" aria-selected="' + (active ? "true" : "false") + '">' + label + "</button></li>";
+    }
+
+    function tabPane(id, body, active) {
+        return '<div class="tab-pane fade' + (active ? " show active" : "") + '" id="' + id +
+            '" role="tabpanel" aria-labelledby="' + id + '-btn">' + body + "</div>";
+    }
+
+    function initials(resource) {
+        const name = (resource && resource.name && resource.name[0]) || {};
+        const given = ((name.given && name.given[0]) || "").charAt(0);
+        const family = (name.family || "").charAt(0);
+        const letters = (given + family) || "?";
+        return letters.toUpperCase();
+    }
+
+    function ageLabel(birthDate) {
+        if (!birthDate) {
+            return "";
+        }
+        const born = new Date(birthDate + "T00:00:00");
+        if (isNaN(born.getTime())) {
+            return birthDate;
+        }
+        const now = new Date();
+        let years = now.getFullYear() - born.getFullYear();
+        const monthDelta = now.getMonth() - born.getMonth();
+        if (monthDelta < 0 || (monthDelta === 0 && now.getDate() < born.getDate())) {
+            years -= 1;
+        }
+        return years >= 0 ? years + "y" : birthDate;
+    }
+
+    function primaryTelecom(system) {
+        const match = (patient.telecom || []).find(function (item) {
+            return item.system === system && item.value;
+        });
+        return match ? match.value : "";
+    }
+
+    function languagePills() {
+        const items = patient.communication || [];
+        if (!items.length) {
+            return '<span class="text-muted">—</span>';
+        }
+        return items.map(function (item) {
+            return '<span class="badge text-bg-secondary me-1 mb-1">' +
+                esc(conceptLabel(item.language || item)) + "</span>";
+        }).join("");
+    }
+
+    function setStat(key, value) {
+        const el = document.getElementById("pd-stat-" + key);
+        if (el) {
+            el.textContent = value == null ? "—" : String(value);
+        }
+    }
+
+    function renderProfile() {
+        $("#pd-initials").text(initials(patient));
+        $("#pd-name").text(personName(patient));
+        $("#pd-crumb-name").text(personName(patient));
+        const parts = [
+            genderLabel(patient.gender),
+            ageLabel(patient.birthDate) || patient.birthDate,
+            patient.active !== false ? "Active" : "Inactive"
+        ].filter(Boolean);
+        $("#pd-subtitle").text(parts.join(" · "));
+        const orgId = refId(patient.managingOrganization);
+        const orgHtml = orgId && isAdmin()
+            ? '<a href="#/organizations/' + encodeURIComponent(orgId) + '">' +
+                esc(refLabel(patient.managingOrganization)) + "</a>"
+            : esc(refLabel(patient.managingOrganization));
+        $("#pd-about-org").html(orgHtml);
+        const address = (patient.address && patient.address[0]) || null;
+        const place = address
+            ? [address.city, address.state].filter(Boolean).join(", ") || formatAddress(address)
+            : "";
+        $("#pd-about-location").text(place || "—");
+        $("#pd-about-dob").text(patient.birthDate || "—");
+        $("#pd-about-languages").html(languagePills());
+        const contact = [primaryTelecom("phone"), primaryTelecom("email")].filter(Boolean).join(" · ");
+        $("#pd-about-contact").html(
+            (contact ? esc(contact) + "<br>" : "") +
+            "<code>" + esc(patient.id) + "</code>"
+        );
+    }
+
     function modal(id, title, body, formId) {
         return '<div class="modal fade" id="' + id + '" tabindex="-1">' +
             '<div class="modal-dialog">' +
@@ -303,47 +420,122 @@ window.CadminPatientDetail = (function () {
         const admin = isAdmin();
         const $root = $("#app-content");
         $root.html(
-            '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
+            '<div class="d-flex align-items-center justify-content-between mb-3">' +
                 "<div>" +
-                    '<a class="small text-decoration-none" href="#/patients">' +
-                        '<i class="bi bi-arrow-left me-1"></i>Patients</a>' +
-                    '<h1 class="h3 mb-0 page-title">' + esc(personName(patient)) + "</h1>" +
+                    '<nav aria-label="breadcrumb">' +
+                        '<ol class="breadcrumb mb-1">' +
+                            '<li class="breadcrumb-item"><a href="#/patients">Patients</a></li>' +
+                            '<li class="breadcrumb-item active" aria-current="page" id="pd-crumb-name">' +
+                                esc(personName(patient)) + "</li>" +
+                        "</ol>" +
+                    "</nav>" +
+                    '<h1 class="h3 mb-0 page-title">Patient</h1>' +
                 "</div>" +
                 '<a class="btn btn-outline-primary" href="#/resources/Patient/' + encodeURIComponent(patient.id) + '">' +
                     '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
             "</div>" +
             '<div class="row">' +
-                '<div class="col-lg-6">' + editCard("Basic details", "pd-basic-details", "#pd-basic-modal") + "</div>" +
-                '<div class="col-lg-6">' + card("Identifiers", "pd-id-rows",
-                    ["System", "Value", ""], "#pd-id-modal", "Add") + "</div>" +
-            "</div>" +
-            '<div class="row">' +
-                '<div class="col-lg-6">' + card("Contacts", "pd-telecom-rows",
-                    ["System", "Value", ""], "#pd-telecom-modal", "Add") + "</div>" +
-                '<div class="col-lg-6">' + card("Addresses", "pd-address-rows",
-                    ["Address", ""], "#pd-address-modal", "Add") + "</div>" +
-            "</div>" +
-            '<div class="row">' +
-                '<div class="col-lg-6">' + card("Languages", "pd-lang-rows",
-                    ["Language", ""], "#pd-lang-modal", "Add") + "</div>" +
-                '<div class="col-lg-6">' + card("Devices", "pd-device-rows",
-                    ["Device", "Type", "Status", ""], "#pd-device-modal", "Add") + "</div>" +
-            "</div>" +
-            (admin
-                ? '<div class="row">' +
-                    '<div class="col-lg-6">' + card("Care teams", "pd-team-rows",
-                        ["Name", "Status", "Organization", ""], "#pd-team-modal", "Add") + "</div>" +
-                    '<div class="col-lg-6">' + card("Caregivers", "pd-caregiver-rows",
-                        ["Name", "Care team", "Role", ""], "#pd-caregiver-modal", "Add") + "</div>" +
+                '<div class="col-md-3">' +
+                    '<div class="card card-primary card-outline mb-4">' +
+                        '<div class="card-body box-profile">' +
+                            '<div class="text-center">' +
+                                '<div class="profile-initials mb-3" id="pd-initials">' +
+                                    esc(initials(patient)) + "</div>" +
+                            "</div>" +
+                            '<h3 class="profile-username text-center mb-1" id="pd-name">' +
+                                esc(personName(patient)) + "</h3>" +
+                            '<p class="text-muted text-center mb-2" id="pd-subtitle"></p>' +
+                            '<div class="text-center mb-3" id="pd-flag-badge"></div>' +
+                            '<ul class="list-group list-group-unbordered mb-3">' +
+                                '<li class="list-group-item">' +
+                                    "<b>Flags</b> <span class=\"float-end\" id=\"pd-stat-flags\">0</span></li>" +
+                                '<li class="list-group-item">' +
+                                    "<b>Devices</b> <span class=\"float-end\" id=\"pd-stat-devices\">0</span></li>" +
+                                (admin
+                                    ? '<li class="list-group-item">' +
+                                        "<b>Care teams</b> <span class=\"float-end\" id=\"pd-stat-teams\">0</span></li>"
+                                    : "") +
+                            "</ul>" +
+                            '<button class="btn btn-primary w-100" type="button" data-bs-toggle="modal" ' +
+                                'data-bs-target="#pd-basic-modal">Edit details</button>' +
+                        "</div>" +
+                    "</div>" +
+                    '<div class="card mb-4">' +
+                        '<div class="card-header"><h3 class="card-title">About</h3></div>' +
+                        '<div class="card-body">' +
+                            (admin
+                                ? "<strong><i class=\"bi bi-building me-1\"></i> Organization</strong>" +
+                                    '<p class="text-muted" id="pd-about-org">—</p><hr>'
+                                : "") +
+                            "<strong><i class=\"bi bi-geo-alt me-1\"></i> Location</strong>" +
+                            '<p class="text-muted" id="pd-about-location">—</p><hr>' +
+                            "<strong><i class=\"bi bi-calendar-date me-1\"></i> Birth date</strong>" +
+                            '<p class="text-muted" id="pd-about-dob">—</p><hr>' +
+                            "<strong><i class=\"bi bi-translate me-1\"></i> Languages</strong>" +
+                            '<p class="text-muted mb-2" id="pd-about-languages">—</p><hr>' +
+                            "<strong><i class=\"bi bi-person-vcard me-1\"></i> Contact</strong>" +
+                            '<p class="text-muted mb-0" id="pd-about-contact">—</p>' +
+                        "</div>" +
+                    "</div>" +
                 "</div>" +
-                '<div class="row">' +
-                    '<div class="col-lg-6">' + card("Practitioners", "pd-practitioner-rows",
-                        ["Name", "Care team", "Role", ""], "#pd-practitioner-modal", "Add") + "</div>" +
-                    '<div class="col-lg-6">' + card("Consents", "pd-consent-rows",
-                        ["Category", "Decision", "Status", ""], "#pd-consent-modal", "Add") + "</div>" +
-                "</div>"
-                : "") +
-            CadminResourceGraph.card() +
+                '<div class="col-md-9">' +
+                    '<div class="card">' +
+                        '<div class="card-header p-2">' +
+                            '<ul class="nav nav-pills" role="tablist">' +
+                                tabButton("pd-tab-clinical", "Clinical", true) +
+                                tabButton("pd-tab-details", "Details", false) +
+                                (admin
+                                    ? tabButton("pd-tab-care", "Care", false) +
+                                        tabButton("pd-tab-privacy", "Privacy", false)
+                                    : "") +
+                                tabButton("pd-tab-graph", "Graph", false) +
+                            "</ul>" +
+                        "</div>" +
+                        '<div class="card-body">' +
+                            '<div class="tab-content">' +
+                                tabPane("pd-tab-clinical",
+                                    card("Flags", "pd-flag-rows",
+                                        ["Status", "Category", "Code", "Period", ""], "#pd-flag-modal", "Add") +
+                                    card("Devices", "pd-device-rows",
+                                        ["Device", "Type", "Status", ""], "#pd-device-modal", "Add"),
+                                    true) +
+                                tabPane("pd-tab-details",
+                                    editCard("Basic details", "pd-basic-details", "#pd-basic-modal") +
+                                    card("Identifiers", "pd-id-rows",
+                                        ["System", "Value", ""], "#pd-id-modal", "Add") +
+                                    '<div class="row">' +
+                                        '<div class="col-lg-6">' + card("Contacts", "pd-telecom-rows",
+                                            ["System", "Value", ""], "#pd-telecom-modal", "Add") + "</div>" +
+                                        '<div class="col-lg-6">' + card("Addresses", "pd-address-rows",
+                                            ["Address", ""], "#pd-address-modal", "Add") + "</div>" +
+                                    "</div>" +
+                                    card("Languages", "pd-lang-rows",
+                                        ["Language", ""], "#pd-lang-modal", "Add"),
+                                    false) +
+                                (admin
+                                    ? tabPane("pd-tab-care",
+                                        '<div class="row">' +
+                                            '<div class="col-lg-6">' + card("Care teams", "pd-team-rows",
+                                                ["Name", "Status", "Organization", ""], "#pd-team-modal", "Add") +
+                                            "</div>" +
+                                            '<div class="col-lg-6">' + card("Caregivers", "pd-caregiver-rows",
+                                                ["Name", "Care team", "Role", ""], "#pd-caregiver-modal", "Add") +
+                                            "</div>" +
+                                        "</div>" +
+                                        card("Practitioners", "pd-practitioner-rows",
+                                            ["Name", "Care team", "Role", ""], "#pd-practitioner-modal", "Add"),
+                                        false) +
+                                        tabPane("pd-tab-privacy",
+                                            card("Consents", "pd-consent-rows",
+                                                ["Category", "Decision", "Status", ""], "#pd-consent-modal", "Add"),
+                                            false)
+                                    : "") +
+                                tabPane("pd-tab-graph", CadminResourceGraph.card(), false) +
+                            "</div>" +
+                        "</div>" +
+                    "</div>" +
+                "</div>" +
+            "</div>" +
             modal("pd-basic-modal", "Edit basic details",
                 field("Prefix", '<input class="form-control" id="pd-prefix">') +
                 field("Given name", '<input class="form-control" id="pd-given" required>') +
@@ -391,6 +583,18 @@ window.CadminPatientDetail = (function () {
                     field("Manufacturer", '<input class="form-control" id="pd-dev-mfg">') +
                 "</div>",
                 "pd-device-form") +
+            modal("pd-flag-modal", "Create flag",
+                field("Status", '<select class="form-select" id="pd-flag-status"></select>') +
+                field("Category", '<select class="form-select" id="pd-flag-category"></select>') +
+                field("Code", '<select class="form-select" id="pd-flag-code"></select>') +
+                field("Message", '<input class="form-control" id="pd-flag-text" required>') +
+                '<div class="row"><div class="col-md-6 mb-3"><label class="form-label">Period start</label>' +
+                    '<input type="date" class="form-control" id="pd-flag-start"></div>' +
+                    '<div class="col-md-6 mb-3"><label class="form-label">Period end</label>' +
+                    '<input type="date" class="form-control" id="pd-flag-end"></div></div>' +
+                field("Author", '<select class="form-select" id="pd-flag-author">' +
+                    '<option value="">None</option></select>'),
+                "pd-flag-form") +
             (admin
                 ? modal("pd-team-modal", "Create care team",
                     field("Name", '<input class="form-control" id="pd-ct-name" required>') +
@@ -440,6 +644,7 @@ window.CadminPatientDetail = (function () {
         renderAddresses();
         renderLanguages();
         loadDevices();
+        loadFlags();
         bindForms();
         if (admin) {
             loadCareTeams();
@@ -465,7 +670,7 @@ window.CadminPatientDetail = (function () {
                 '<dt class="col-sm-4">ID</dt><dd class="col-sm-8"><code>' + esc(patient.id) + "</code></dd>" +
             "</dl>"
         );
-        $(".page-title").first().text(personName(patient));
+        renderProfile();
     }
 
     function renderIdentifiers() {
@@ -551,6 +756,7 @@ window.CadminPatientDetail = (function () {
                 "&_include=DeviceAssociation:device&_count=50")
                 .done(renderDeviceRows)
                 .fail(function (xhr) {
+                    setStat("devices", 0);
                     $("#pd-device-rows").html(emptyRow(4, "Unable to load devices."));
                     fail("Load devices", xhr);
                 });
@@ -567,6 +773,7 @@ window.CadminPatientDetail = (function () {
                 associations.push(resource);
             }
         });
+        setStat("devices", associations.length);
         if (!associations.length) {
             $("#pd-device-rows").html(emptyRow(4, "No devices assigned."));
             return;
@@ -589,10 +796,12 @@ window.CadminPatientDetail = (function () {
         CadminApi.fhir("/CareTeam?patient=" + encodeURIComponent(patient.id) + "&_count=50&_sort=name")
             .done(function (bundle) {
                 careTeams = bundleResources(bundle, "CareTeam");
+                setStat("teams", careTeams.length);
                 renderCareTeams();
                 renderCaregivers();
                 renderPractitioners();
             }).fail(function (xhr) {
+                setStat("teams", 0);
                 $("#pd-team-rows").html(emptyRow(4, "Unable to load care teams."));
                 fail("Load care teams", xhr);
             });
@@ -644,6 +853,64 @@ window.CadminPatientDetail = (function () {
 
     function renderPractitioners() {
         renderMemberRows("#pd-practitioner-rows", "Practitioner", "#/practitioners/");
+    }
+
+    function periodLabel(period) {
+        if (!period || (!period.start && !period.end)) {
+            return "—";
+        }
+        return (period.start || "…") + " – " + (period.end || "…");
+    }
+
+    function renderFlagBadge(flags) {
+        const active = (flags || []).filter(function (item) { return item.status === "active"; });
+        if (!active.length) {
+            $("#pd-flag-badge").empty();
+            return;
+        }
+        const first = conceptLabel(active[0].code);
+        const label = active.length === 1
+            ? first
+            : active.length + " flags · " + first;
+        $("#pd-flag-badge").html(
+            '<span class="badge text-bg-warning"><i class="bi bi-flag me-1"></i>' + esc(label) + "</span>"
+        );
+    }
+
+    function loadFlags() {
+        CadminApi.fhir("/Flag?patient=" + encodeURIComponent(patient.id) + "&_sort=-_lastUpdated&_count=50")
+            .done(function (bundle) {
+                const entries = bundleResources(bundle, "Flag");
+                setStat("flags", entries.filter(function (item) { return item.status === "active"; }).length);
+                renderFlagBadge(entries);
+                if (!entries.length) {
+                    $("#pd-flag-rows").html(emptyRow(5, "No flags."));
+                    return;
+                }
+                $("#pd-flag-rows").html(entries.map(function (flag) {
+                    const inactivate = flag.status === "active"
+                        ? '<button class="btn btn-sm btn-outline-warning" type="button" data-inactivate-flag="' +
+                            esc(flag.id) + '" title="Inactivate"><i class="bi bi-flag"></i></button>'
+                        : "";
+                    const statusKind = flag.status === "active" ? "warning"
+                        : flag.status === "entered-in-error" ? "danger" : "secondary";
+                    return "<tr><td><span class=\"badge text-bg-" + statusKind + '">' +
+                        esc(flag.status || "—") + "</span></td>" +
+                        "<td>" + esc(conceptLabel(flag.category)) + "</td>" +
+                        "<td>" + CadminApi.resourceLink("#/flags/" + encodeURIComponent(flag.id),
+                            conceptLabel(flag.code)) + "</td>" +
+                        "<td>" + esc(periodLabel(flag.period)) + "</td>" +
+                        '<td class="text-end">' +
+                            '<a class="btn btn-sm btn-outline-primary me-1" href="#/flags/' +
+                            encodeURIComponent(flag.id) + '" title="Open"><i class="bi bi-eye"></i></a>' +
+                            inactivate + "</td></tr>";
+                }).join(""));
+            }).fail(function (xhr) {
+                setStat("flags", 0);
+                $("#pd-flag-badge").empty();
+                $("#pd-flag-rows").html(emptyRow(5, "Unable to load flags."));
+                fail("Load flags", xhr);
+            });
     }
 
     function loadConsents() {
@@ -728,6 +995,12 @@ window.CadminPatientDetail = (function () {
         const $root = $("#app-content");
         $root.off(".ptdetail");
 
+        $root.on("shown.bs.tab.ptdetail", "#pd-tab-graph-btn", function () {
+            if (typeof CadminResourceGraph.resize === "function") {
+                CadminResourceGraph.resize();
+            }
+        });
+
         $root.on("click.ptdetail", "[data-remove]", function () {
             const fieldName = $(this).attr("data-remove");
             const index = Number($(this).attr("data-index"));
@@ -736,6 +1009,19 @@ window.CadminPatientDetail = (function () {
                 delete patient[fieldName];
             }
             savePatient(function () { alertMsg("success", "Removed."); });
+        });
+
+        $root.on("click.ptdetail", "[data-inactivate-flag]", function () {
+            const id = $(this).attr("data-inactivate-flag");
+            CadminApi.fhir("/Flag/" + encodeURIComponent(id)).done(function (flag) {
+                flag.status = "inactive";
+                flag.period = flag.period || {};
+                flag.period.end = new Date().toISOString().slice(0, 10);
+                CadminApi.fhir("/Flag/" + encodeURIComponent(id), "PUT", flag).done(function () {
+                    alertMsg("success", "Flag inactivated.");
+                    loadFlags();
+                }).fail(function (xhr) { fail("Inactivate flag", xhr); });
+            }).fail(function (xhr) { fail("Inactivate flag", xhr); });
         });
 
         $root.on("click.ptdetail", "[data-unassign]", function () {
@@ -793,9 +1079,11 @@ window.CadminPatientDetail = (function () {
             $("#pd-birth").val(patient.birthDate || "");
             $("#pd-active").prop("checked", patient.active !== false);
             if (isAdmin()) {
-                fillSelect("#pd-org", "/Organization?_count=200&_sort=name", function (org) {
-                    return org.name || org.id;
-                }, "None", refId(patient.managingOrganization));
+                CadminApi.bindOrganizationSelect("#pd-org", {
+                    placeholder: "None",
+                    selectedId: refId(patient.managingOrganization),
+                    selectedLabel: refLabel(patient.managingOrganization)
+                });
             }
         });
 
@@ -815,13 +1103,11 @@ window.CadminPatientDetail = (function () {
         $("#pd-team-modal").on("show.bs.modal", function () {
             $("#pd-ct-name").val(personName(patient) + " care team");
             $("#pd-ct-status").val("active");
-            fillSelect("#pd-ct-org", "/Organization?_count=200&_sort=name", function (org) {
-                return org.name || org.id;
-            }, "None");
+            CadminApi.bindOrganizationSelect("#pd-ct-org", { placeholder: "None" });
         });
 
         $("#pd-caregiver-modal").on("show.bs.modal", function () {
-            fillSelect("#pd-cg-person", "/RelatedPerson?_count=200&_sort=name", personName, "Select…");
+            CadminApi.bindCaregiverSelect("#pd-cg-person", { placeholder: "Select…" });
             fillTeamSelect("#pd-cg-team");
             $("#pd-cg-name").val(personName(patient) + " care team");
             $("#pd-cg-name-wrap").removeClass("d-none");
@@ -829,11 +1115,43 @@ window.CadminPatientDetail = (function () {
         });
 
         $("#pd-practitioner-modal").on("show.bs.modal", function () {
-            fillSelect("#pd-pr-person", "/Practitioner?_count=200&_sort=name", personName, "Select…");
+            CadminApi.bindPractitionerSelect("#pd-pr-person", { placeholder: "Select…" });
             fillTeamSelect("#pd-pr-team");
             $("#pd-pr-name").val(personName(patient) + " care team");
             $("#pd-pr-name-wrap").removeClass("d-none");
             $("#pd-pr-role").val("doctor");
+        });
+
+        $("#pd-flag-modal").on("show.bs.modal", function () {
+            CadminApi.fillValueSetSelect("#pd-flag-status", CadminApi.valueSets.flagStatus, {
+                fallback: flagStatuses,
+                selected: "active"
+            });
+            CadminApi.fillSelectOptions("#pd-flag-category", flagCategories, { selected: "safety" });
+            CadminApi.expandValueSet(CadminApi.valueSets.flagCategory).done(function (concepts) {
+                const usable = concepts.filter(function (item) {
+                    return item.code && item.code.charAt(0) !== "_";
+                });
+                if (usable.length) {
+                    flagCategories = usable;
+                }
+                CadminApi.fillSelectOptions("#pd-flag-category", flagCategories, { selected: "safety" });
+            });
+            CadminApi.fillSelectOptions("#pd-flag-code", flagCodes, {
+                prepend: [{ code: "", display: "Custom message" }],
+                selected: "fall-risk"
+            });
+            $("#pd-flag-text").val("Fall risk");
+            $("#pd-flag-start").val("");
+            $("#pd-flag-end").val("");
+            CadminApi.bindPractitionerSelect("#pd-flag-author", { placeholder: "None" });
+        });
+
+        $("#pd-flag-code").on("change", function () {
+            const match = flagCodes.find(function (item) { return item.code === $("#pd-flag-code").val(); });
+            if (match) {
+                $("#pd-flag-text").val(match.display);
+            }
         });
 
         $("#pd-consent-modal").on("show.bs.modal", function () {
@@ -849,9 +1167,7 @@ window.CadminPatientDetail = (function () {
                 selected: "deny"
             });
             $("#pd-cons-date").val(new Date().toISOString().slice(0, 10));
-            fillSelect("#pd-cons-grantee", "/Organization?_count=200&_sort=name", function (org) {
-                return org.name || org.id;
-            }, "None");
+            CadminApi.bindOrganizationSelect("#pd-cons-grantee", { placeholder: "None" });
         });
 
         $("#pd-basic-form").on("submit", function (event) {
@@ -867,11 +1183,11 @@ window.CadminPatientDetail = (function () {
             patient.active = $("#pd-active").is(":checked");
             setOrDelete(patient, "birthDate", $("#pd-birth").val());
             if (isAdmin()) {
-                const orgId = $("#pd-org").val();
+                const orgId = CadminApi.selectValue("#pd-org");
                 if (orgId) {
                     patient.managingOrganization = {
                         reference: "Organization/" + orgId,
-                        display: $("#pd-org option:selected").text()
+                        display: CadminApi.selectLabel("#pd-org")
                     };
                 } else {
                     delete patient.managingOrganization;
@@ -1025,11 +1341,11 @@ window.CadminPatientDetail = (function () {
                     coding: [{ system: "http://loinc.org", code: category.code, display: category.display }]
                 }];
             }
-            const orgId = $("#pd-ct-org").val();
+            const orgId = CadminApi.selectValue("#pd-ct-org");
             if (orgId) {
                 resource.managingOrganization = [{
                     reference: "Organization/" + orgId,
-                    display: $("#pd-ct-org option:selected").text()
+                    display: CadminApi.selectLabel("#pd-ct-org")
                 }];
             }
             CadminApi.fhir("/CareTeam", "POST", resource).done(function () {
@@ -1041,13 +1357,13 @@ window.CadminPatientDetail = (function () {
 
         $("#pd-caregiver-form").on("submit", function (event) {
             event.preventDefault();
-            const id = $("#pd-cg-person").val();
+            const id = CadminApi.selectValue("#pd-cg-person");
             if (!id) {
                 alertMsg("danger", "Select a caregiver.");
                 return;
             }
             const role = caregiverRoles.find(function (item) { return item.code === $("#pd-cg-role").val(); });
-            const participant = participantFrom("RelatedPerson", id, $("#pd-cg-person option:selected").text(),
+            const participant = participantFrom("RelatedPerson", id, CadminApi.selectLabel("#pd-cg-person"),
                 role, "http://terminology.hl7.org/CodeSystem/v3-RoleCode");
             addParticipantToTeam($("#pd-cg-team").val(), $("#pd-cg-name").val().trim(), participant, function () {
                 hideModal("pd-caregiver-modal");
@@ -1058,19 +1374,80 @@ window.CadminPatientDetail = (function () {
 
         $("#pd-practitioner-form").on("submit", function (event) {
             event.preventDefault();
-            const id = $("#pd-pr-person").val();
+            const id = CadminApi.selectValue("#pd-pr-person");
             if (!id) {
                 alertMsg("danger", "Select a practitioner.");
                 return;
             }
             const role = practitionerRoles.find(function (item) { return item.code === $("#pd-pr-role").val(); });
-            const participant = participantFrom("Practitioner", id, $("#pd-pr-person option:selected").text(),
+            const participant = participantFrom("Practitioner", id, CadminApi.selectLabel("#pd-pr-person"),
                 role, "http://terminology.hl7.org/CodeSystem/practitioner-role");
             addParticipantToTeam($("#pd-pr-team").val(), $("#pd-pr-name").val().trim(), participant, function () {
                 hideModal("pd-practitioner-modal");
                 alertMsg("success", "Practitioner added.");
                 loadCareTeams();
             });
+        });
+
+        $("#pd-flag-form").on("submit", function (event) {
+            event.preventDefault();
+            const text = $("#pd-flag-text").val().trim();
+            if (!text) {
+                alertMsg("danger", "Enter a flag message.");
+                return;
+            }
+            const categoryCode = $("#pd-flag-category").val();
+            const category = flagCategories.find(function (item) { return item.code === categoryCode; })
+                || { code: categoryCode, display: $("#pd-flag-category option:selected").text(),
+                    system: "http://terminology.hl7.org/CodeSystem/flag-category" };
+            const resource = {
+                resourceType: "Flag",
+                status: $("#pd-flag-status").val() || "active",
+                subject: { reference: "Patient/" + patient.id, display: personName(patient) },
+                code: { text: text }
+            };
+            if (category && category.code) {
+                resource.category = [{
+                    coding: [{
+                        system: category.system || "http://terminology.hl7.org/CodeSystem/flag-category",
+                        code: category.code,
+                        display: category.display
+                    }]
+                }];
+            }
+            const code = $("#pd-flag-code").val();
+            const catalog = flagCodes.find(function (item) { return item.code === code; });
+            if (catalog) {
+                resource.code.coding = [{
+                    system: "https://cadmin.io/fhir/CodeSystem/flag-code",
+                    code: catalog.code,
+                    display: catalog.display
+                }];
+            }
+            const start = $("#pd-flag-start").val();
+            const end = $("#pd-flag-end").val();
+            if (start || end) {
+                resource.period = {};
+                if (start) { resource.period.start = start; }
+                if (end) { resource.period.end = end; }
+            }
+            const authorId = CadminApi.selectValue("#pd-flag-author");
+            if (authorId) {
+                resource.author = {
+                    reference: "Practitioner/" + authorId,
+                    display: CadminApi.selectLabel("#pd-flag-author")
+                };
+            }
+            CadminApi.fhir("/Flag", "POST", resource).done(function (created, _status, xhr) {
+                const id = CadminApi.createdResourceId(created, xhr, "Flag");
+                hideModal("pd-flag-modal");
+                alertMsg("success", "Flag created.");
+                if (id) {
+                    window.location.hash = "#/flags/" + encodeURIComponent(id);
+                    return;
+                }
+                loadFlags();
+            }).fail(function (xhr) { fail("Create flag", xhr); });
         });
 
         $("#pd-consent-form").on("submit", function (event) {
@@ -1097,11 +1474,11 @@ window.CadminPatientDetail = (function () {
             if (decision) { resource.decision = decision; }
             const date = $("#pd-cons-date").val();
             if (date) { resource.date = date; }
-            const granteeId = $("#pd-cons-grantee").val();
+            const granteeId = CadminApi.selectValue("#pd-cons-grantee");
             if (granteeId) {
                 resource.grantee = [{
                     reference: "Organization/" + granteeId,
-                    display: $("#pd-cons-grantee option:selected").text()
+                    display: CadminApi.selectLabel("#pd-cons-grantee")
                 }];
             }
             CadminApi.fhir("/Consent", "POST", resource).done(function (created, _status, xhr) {

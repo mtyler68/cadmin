@@ -287,10 +287,13 @@ function renderPdsPolicyList(initialQuery) {
         if (query) {
             path += "&title=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+        const pageSize = CadminApi.listPageSize("pds-policies");
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage, pageSize)).done(function (bundle) {
             const entries = CadminApi.bundleResources(bundle, "Library");
             CadminApi.renderPager("#pds-policy-pager", {
                 page: listPage,
+                size: pageSize,
+                pageSizeKey: "pds-policies",
                 returned: entries.length,
                 total: bundle.total,
                 bundle: bundle,

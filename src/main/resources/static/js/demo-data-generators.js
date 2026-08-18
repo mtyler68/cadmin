@@ -12,6 +12,7 @@ window.CadminDemoData = (function () {
         { key: "device", type: "Device", label: "Devices", icon: "mdi:devices" }
     ];
     const PURGE_TYPES = [
+        "Flag",
         "DeviceAssociation",
         "PractitionerRole",
         "OrganizationAffiliation",
@@ -564,6 +565,68 @@ window.CadminDemoData = (function () {
                     ],
                     address: [addr]
                 })
+            });
+        }
+
+        if (patientKeys.length) {
+            associations.push("Flag warnings bound to patients");
+            const flagSpecs = [
+                {
+                    key: "flag-safety",
+                    categoryCode: "safety",
+                    categoryDisplay: "Safety",
+                    code: "fall-risk",
+                    display: "Fall risk",
+                    patientIndex: 0
+                },
+                {
+                    key: "flag-admin",
+                    categoryCode: "admin",
+                    categoryDisplay: "Administrative",
+                    code: "admin-hold",
+                    display: "Insurance verification needed",
+                    patientIndex: patientKeys.length > 1 ? 1 : 0
+                }
+            ];
+            flagSpecs.forEach(function (spec) {
+                const patientKey = patientKeys[spec.patientIndex];
+                const authorKey = pracKeys.length ? pracKeys[0] : "";
+                addDraft(drafts, {
+                    key: spec.key,
+                    type: "Flag",
+                    display: spec.display,
+                    detail: spec.categoryDisplay,
+                    implied: true,
+                    resource: withDemoMeta({
+                        resourceType: "Flag",
+                        status: "active",
+                        category: [coding(
+                            "http://terminology.hl7.org/CodeSystem/flag-category",
+                            spec.categoryCode,
+                            spec.categoryDisplay
+                        )],
+                        code: {
+                            text: spec.display,
+                            coding: [{
+                                system: "https://cadmin.io/fhir/CodeSystem/flag-code",
+                                code: spec.code,
+                                display: spec.display
+                            }]
+                        }
+                    }),
+                    bind: function (resource, created) {
+                        const subject = referenceOf(created, patientKey);
+                        if (subject) {
+                            resource.subject = subject;
+                        }
+                        if (authorKey) {
+                            const author = referenceOf(created, authorKey);
+                            if (author) {
+                                resource.author = author;
+                            }
+                        }
+                    }
+                });
             });
         }
 
