@@ -54,6 +54,7 @@ function renderLocationList(initialQuery) {
                         '<tbody id="location-rows"><tr><td colspan="7" class="text-muted">Loading…</td></tr></tbody>' +
                     '</table>' +
                 '</div>' +
+                '<div class="list-pager" id="location-pager"></div>' +
             '</div>' +
         '</div>' +
         '<div class="modal fade" id="create-location-modal" tabindex="-1">' +
@@ -82,10 +83,19 @@ function renderLocationList(initialQuery) {
                             '<select class="form-select" id="loc-part-of"><option value="">None</option></select></div>' +
                         '<div class="mb-3"><label class="form-label">Address</label>' +
                             '<input class="form-control" id="loc-line" placeholder="Street"></div>' +
-                        '<div class="row"><div class="col-md-6 mb-0"><label class="form-label">City</label>' +
+                        '<div class="row"><div class="col-md-6 mb-3"><label class="form-label">City</label>' +
                             '<input class="form-control" id="loc-city"></div>' +
-                        '<div class="col-md-6 mb-0"><label class="form-label">State</label>' +
+                        '<div class="col-md-6 mb-3"><label class="form-label">State</label>' +
                             '<input class="form-control" id="loc-state"></div></div>' +
+                        '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                            '<span class="form-label mb-0">Position</span>' +
+                            '<button class="btn btn-sm btn-outline-primary" type="button" id="loc-lookup">' +
+                                '<i class="bi bi-geo-alt me-1"></i>Lookup from address</button>' +
+                        "</div>" +
+                        '<div class="row"><div class="col-md-6 mb-0"><label class="form-label">Latitude</label>' +
+                            '<input class="form-control" id="loc-lat"></div>' +
+                        '<div class="col-md-6 mb-0"><label class="form-label">Longitude</label>' +
+                            '<input class="form-control" id="loc-lng"></div></div>' +
                     "</div>" +
                     '<div class="modal-footer">' +
                         '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>' +
@@ -138,13 +148,23 @@ function renderLocationList(initialQuery) {
         });
     }
 
-    function load(query) {
-        let path = "/Location?_count=50&_sort=-_lastUpdated";
+    let listPage = 0;
+
+    function load(query, page) {
+        listPage = typeof page === "number" ? page : 0;
+        let path = "/Location?_sort=-_lastUpdated";
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(path).done(function (bundle) {
-            const entries = (bundle.entry || []).map(function (e) { return e.resource; }).filter(Boolean);
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+            const entries = CadminApi.bundleResources(bundle, "Location");
+            CadminApi.renderPager("#location-pager", {
+                page: listPage,
+                returned: entries.length,
+                total: bundle.total,
+                bundle: bundle,
+                onPage: function (nextPage) { load(query, nextPage); }
+            });
             if (!entries.length) {
                 $("#location-rows").html('<tr><td colspan="7" class="text-muted">No locations found. Create one or start HAPI FHIR.</td></tr>');
                 return;
@@ -152,7 +172,7 @@ function renderLocationList(initialQuery) {
             const rows = entries.map(function (loc) {
                 const kind = loc.status === "active" ? "success" : loc.status === "suspended" ? "warning" : "secondary";
                 return "<tr>" +
-                    "<td>" + CadminApi.escapeHtml(loc.name || "Unnamed") + "</td>" +
+                    "<td>" + CadminApi.resourceLink("#/locations/" + encodeURIComponent(loc.id), loc.name || "Unnamed") + "</td>" +
                     "<td>" + CadminApi.escapeHtml(refLabel(loc.managingOrganization)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(refLabel(loc.partOf)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(conceptLabel(loc.form) !== "—"
@@ -165,6 +185,7 @@ function renderLocationList(initialQuery) {
             });
             $("#location-rows").html(rows.join(""));
         }).fail(function (xhr) {
+            $("#location-pager").empty();
             $("#location-rows").html('<tr><td colspan="7" class="text-danger">Unable to load locations from /fhir.</td></tr>');
             CadminApi.showAlert("#location-alert", "danger",
                 "FHIR request failed (" + xhr.status + "). Is the HAPI FHIR stack running?");
@@ -217,6 +238,17 @@ function renderLocationList(initialQuery) {
                 state: state || undefined
             };
         }
+        const lat = $("#loc-lat").val();
+        const lng = $("#loc-lng").val();
+        if (lat || lng) {
+            resource.position = {};
+            if (lat) {
+                resource.position.latitude = Number(lat);
+            }
+            if (lng) {
+                resource.position.longitude = Number(lng);
+            }
+        }
         CadminApi.fhir("/Location", "POST", resource).done(function () {
             const modal = bootstrap.Modal.getInstance(document.getElementById("create-location-modal"));
             if (modal) {
@@ -226,6 +258,37 @@ function renderLocationList(initialQuery) {
             load($("#location-query").val());
         }).fail(function (xhr) {
             CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
+        });
+    });
+
+    $("#loc-lookup").on("click", function () {
+        const fields = {
+            line: ($("#loc-line").val() || "").trim(),
+            city: ($("#loc-city").val() || "").trim(),
+            state: ($("#loc-state").val() || "").trim()
+        };
+        if (!fields.line && !fields.city && !fields.state) {
+            CadminApi.showToast("danger", "Enter an address first.");
+            return;
+        }
+        const $btn = $(this);
+        const label = $btn.html();
+        $btn.prop("disabled", true)
+            .html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Looking up…');
+        CadminApi.geocode(fields).done(function (result) {
+            $("#loc-lat").val(result.latitude);
+            $("#loc-lng").val(result.longitude);
+            CadminApi.showToast("success", result.displayName
+                ? "Coordinates found · " + result.displayName
+                : "Coordinates found.");
+        }).fail(function (xhr) {
+            if (xhr.status === 404) {
+                CadminApi.showToast("warning", "No matching location for that address.");
+                return;
+            }
+            CadminApi.showToast("danger", "Lookup coordinates failed (" + xhr.status + ").");
+        }).always(function () {
+            $btn.prop("disabled", false).html(label);
         });
     });
 

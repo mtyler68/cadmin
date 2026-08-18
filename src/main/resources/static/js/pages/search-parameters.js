@@ -1,12 +1,12 @@
 CadminApp.register("search-parameters", function (params) {
     const initialQuery = params[0] ? decodeURIComponent(params[0]) : "";
-    const statusOptions = [
+    let statusOptions = [
         { code: "draft", display: "Draft" },
         { code: "active", display: "Active" },
         { code: "retired", display: "Retired" },
         { code: "unknown", display: "Unknown" }
     ];
-    const typeOptions = [
+    let typeOptions = [
         { code: "string", display: "String" },
         { code: "token", display: "Token" },
         { code: "reference", display: "Reference" },
@@ -23,7 +23,7 @@ CadminApp.register("search-parameters", function (params) {
         "MedicationRequest", "DiagnosticReport", "DocumentReference", "Library",
         "SearchParameter", "Questionnaire", "ValueSet", "CodeSystem", "Appointment",
         "Coverage", "Device", "DeviceAssociation", "CareTeam", "Group", "HealthcareService",
-        "RelatedPerson", "Task"
+        "RelatedPerson", "Task", "Subscription", "SubscriptionTopic", "Consent"
     ];
     const $root = $("#app-content");
     $root.html(
@@ -49,6 +49,7 @@ CadminApp.register("search-parameters", function (params) {
                         '<tbody id="search-parameter-rows"><tr><td colspan="7" class="text-muted">Loading…</td></tr></tbody>' +
                     '</table>' +
                 '</div>' +
+                '<div class="list-pager" id="search-parameter-pager"></div>' +
             '</div>' +
         '</div>' +
         '<div class="modal fade" id="create-search-parameter-modal" tabindex="-1">' +
@@ -116,20 +117,30 @@ CadminApp.register("search-parameters", function (params) {
         return (resource.base || []).join(", ") || "—";
     }
 
-    function load(query) {
-        let path = "/SearchParameter?_count=50&_sort=-_lastUpdated";
+    let listPage = 0;
+
+    function load(query, page) {
+        listPage = typeof page === "number" ? page : 0;
+        let path = "/SearchParameter?_sort=-_lastUpdated";
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(path).done(function (bundle) {
-            const entries = (bundle.entry || []).map(function (e) { return e.resource; }).filter(Boolean);
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+            const entries = CadminApi.bundleResources(bundle, "SearchParameter");
+            CadminApi.renderPager("#search-parameter-pager", {
+                page: listPage,
+                returned: entries.length,
+                total: bundle.total,
+                bundle: bundle,
+                onPage: function (nextPage) { load(query, nextPage); }
+            });
             if (!entries.length) {
                 $("#search-parameter-rows").html('<tr><td colspan="7" class="text-muted">No search parameters found. Create one or start HAPI FHIR.</td></tr>');
                 return;
             }
             const rows = entries.map(function (sp) {
                 return "<tr>" +
-                    "<td>" + CadminApi.escapeHtml(sp.title || sp.name || "Untitled") + "</td>" +
+                    "<td>" + CadminApi.resourceLink("#/resources/SearchParameter/" + encodeURIComponent(sp.id), sp.title || sp.name || "Untitled") + "</td>" +
                     "<td><code>" + CadminApi.escapeHtml(sp.code || "—") + "</code></td>" +
                     "<td>" + CadminApi.escapeHtml(baseLabel(sp)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(typeLabel(sp.type)) + "</td>" +
@@ -141,6 +152,7 @@ CadminApp.register("search-parameters", function (params) {
             });
             $("#search-parameter-rows").html(rows.join(""));
         }).fail(function (xhr) {
+            $("#search-parameter-pager").empty();
             $("#search-parameter-rows").html('<tr><td colspan="7" class="text-danger">Unable to load search parameters from /fhir.</td></tr>');
             CadminApi.showAlert("#search-parameter-alert", "danger",
                 "FHIR request failed (" + xhr.status + "). Is the HAPI FHIR stack running?");
@@ -180,6 +192,22 @@ CadminApp.register("search-parameters", function (params) {
         }).fail(function (xhr) {
             CadminApi.showToast("danger", "Create failed (" + xhr.status + ").");
         });
+    });
+
+    CadminApi.fillValueSetSelect("#sp-status", CadminApi.valueSets.publicationStatus, {
+        fallback: statusOptions,
+        selected: "draft",
+        onConcepts: function (concepts) { statusOptions = concepts; }
+    });
+    CadminApi.fillValueSetSelect("#sp-type", CadminApi.valueSets.searchParamType, {
+        fallback: typeOptions,
+        selected: "string",
+        onConcepts: function (concepts) { typeOptions = concepts; }
+    });
+    CadminApi.fillValueSetSelect("#sp-base", CadminApi.valueSets.resourceTypes, {
+        fallback: baseOptions.map(function (type) { return { code: type, display: type }; }),
+        selected: "Patient",
+        count: 300
     });
 
     load(initialQuery);

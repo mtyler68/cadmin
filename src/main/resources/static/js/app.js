@@ -28,7 +28,10 @@ window.CadminApp = (function ($) {
         const route = parseHash();
         if ((route.name === "organizations" || route.name === "care-teams"
                 || route.name === "locations" || route.name === "pds-policies"
-                || route.name === "search-parameters")
+                || route.name === "search-parameters" || route.name === "questionnaires"
+                || route.name === "demo-data"
+                || route.name === "subscription-topics" || route.name === "subscriptions"
+                || route.name === "endpoints" || route.name === "consents")
                 && !isAdmin(currentUser)) {
             window.location.hash = "#/dashboard";
             return;

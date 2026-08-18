@@ -259,6 +259,7 @@ window.CadminDeviceDetail = (function () {
                 '<div class="col-lg-6">' + card("Contacts", "dev-contact-rows",
                     ["System", "Value", ""], "#dd-contact-modal", "Add") + "</div>" +
             "</div>" +
+            CadminResourceGraph.card() +
             modal("dd-basic-modal", "Edit basic details",
                 field("Status", '<select class="form-select" id="dd-status">' + optionsHtml(statusOptions) + "</select>") +
                 field("Type", '<select class="form-select" id="dd-type">' + typeSelectHtml() + "</select>") +
@@ -302,7 +303,7 @@ window.CadminDeviceDetail = (function () {
                 field("Value", '<input class="form-control" id="dd-tel-value" required>'),
                 "dd-contact-form")
         );
-
+        CadminResourceGraph.mount(device);
         renderBasics();
         renderAssignment();
         renderNames();
@@ -337,7 +338,7 @@ window.CadminDeviceDetail = (function () {
         $("#dev-assign-details").html(
             '<dl class="row mb-0">' +
                 '<dt class="col-sm-4">Patient</dt><dd class="col-sm-8">' +
-                    refLink("Patient", association && association.subject) + "</dd>" +
+                    refLink("Patient", association && association.subject, "#/patients/") + "</dd>" +
                 '<dt class="col-sm-4">Owner</dt><dd class="col-sm-8">' +
                     refLink("Organization", device.owner, ownerHref) + "</dd>" +
                 '<dt class="col-sm-4">Location</dt><dd class="col-sm-8">' +

@@ -36,6 +36,7 @@ function renderCaregiverList(initialQuery) {
                         '<tbody id="caregiver-rows"><tr><td colspan="5" class="text-muted">Loading…</td></tr></tbody>' +
                     '</table>' +
                 '</div>' +
+                '<div class="list-pager" id="caregiver-pager"></div>' +
             '</div>' +
         '</div>' +
         '<div class="modal fade" id="create-caregiver-modal" tabindex="-1">' +
@@ -75,13 +76,23 @@ function renderCaregiverList(initialQuery) {
         return [given, name.family].filter(Boolean).join(" ") || resource.id || "Unnamed";
     }
 
-    function load(query) {
-        let path = "/RelatedPerson?_count=50&_sort=-_lastUpdated";
+    let listPage = 0;
+
+    function load(query, page) {
+        listPage = typeof page === "number" ? page : 0;
+        let path = "/RelatedPerson?_sort=-_lastUpdated";
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(path).done(function (bundle) {
-            const entries = (bundle.entry || []).map(function (e) { return e.resource; }).filter(Boolean);
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+            const entries = CadminApi.bundleResources(bundle, "RelatedPerson");
+            CadminApi.renderPager("#caregiver-pager", {
+                page: listPage,
+                returned: entries.length,
+                total: bundle.total,
+                bundle: bundle,
+                onPage: function (nextPage) { load(query, nextPage); }
+            });
             if (!entries.length) {
                 $("#caregiver-rows").html('<tr><td colspan="5" class="text-muted">No caregivers found. Create one or start HAPI FHIR.</td></tr>');
                 return;
@@ -89,7 +100,7 @@ function renderCaregiverList(initialQuery) {
             const rows = entries.map(function (person) {
                 const active = person.active !== false;
                 return "<tr>" +
-                    "<td>" + CadminApi.escapeHtml(personName(person)) + "</td>" +
+                    "<td>" + CadminApi.resourceLink("#/caregivers/" + encodeURIComponent(person.id), personName(person)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(person.gender || "—") + "</td>" +
                     "<td>" + (active
                         ? '<span class="badge text-bg-success">Active</span>'
@@ -101,6 +112,7 @@ function renderCaregiverList(initialQuery) {
             });
             $("#caregiver-rows").html(rows.join(""));
         }).fail(function (xhr) {
+            $("#caregiver-pager").empty();
             $("#caregiver-rows").html('<tr><td colspan="5" class="text-danger">Unable to load caregivers from /fhir.</td></tr>');
             CadminApi.showAlert("#caregiver-alert", "danger",
                 "FHIR request failed (" + xhr.status + "). Is the HAPI FHIR stack running?");

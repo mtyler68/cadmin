@@ -8,7 +8,13 @@ window.CadminPdsPolicyDetail = (function () {
     ];
     const applyOptions = [
         { code: "deny-overrides", display: "Deny overrides" },
-        { code: "permit-overrides", display: "Permit overrides" }
+        { code: "permit-overrides", display: "Permit overrides" },
+        { code: "first-permit-or-deny", display: "First permit or deny" }
+    ];
+    const outcomeOptions = [
+        { code: "indeterminate", display: "Indeterminate" },
+        { code: "permit", display: "Permit" },
+        { code: "deny", display: "Deny" }
     ];
     const policyContentType = "application/x-policy+x-yaml";
     const contentTypes = [
@@ -377,10 +383,21 @@ window.CadminPdsPolicyDetail = (function () {
             cm.getWrapperElement().style.minHeight = minHeight;
         }
         bindParameterMatch(cm);
+        if (window.CadminSpelPolicyCompletion) {
+            CadminSpelPolicyCompletion.attach(cm);
+        }
         requestAnimationFrame(function () {
             cm.refresh();
         });
         return cm;
+    }
+
+    function teardownCm($el) {
+        const cm = $el.data("cm");
+        if (cm) {
+            cm.toTextArea();
+            $el.removeData("cm");
+        }
     }
 
     function teardownSpelEditors() {
@@ -389,17 +406,13 @@ window.CadminPdsPolicyDetail = (function () {
             targetEditor.toTextArea();
             targetEditor = null;
         }
-        $("#pd-policy-ontarget .pd-ontarget-row").each(function () {
-            const cm = $(this).data("cm");
-            if (cm) {
-                cm.toTextArea();
-                $(this).removeData("cm");
-            }
+        $("#pd-policy-ontarget .pd-ontarget-row, #pd-policy-rules .pd-spel-row, #pd-policy-rules .spel-host").each(function () {
+            teardownCm($(this));
         });
     }
 
     function attachOnTargetEditor($row) {
-        const textarea = $row.find("textarea.pd-ontarget-value")[0];
+        const textarea = $row.find("textarea.pd-ontarget-value, textarea.pd-spel-value")[0];
         const cm = attachSpelEditor(textarea, "3.5rem");
         if (cm) {
             $row.data("cm", cm);
@@ -539,14 +552,15 @@ window.CadminPdsPolicyDetail = (function () {
         }
     }
 
-    function yamlScalar(value) {
+    function yamlScalar(value, indent) {
         const text = value == null ? "" : String(value);
+        const pad = indent || "";
         if (text === "") {
             return '""';
         }
         if (/[\n\r]/.test(text)) {
             return "|\n" + text.split(/\r?\n/).map(function (line) {
-                return "  " + line;
+                return pad + "  " + line;
             }).join("\n");
         }
         if (/[:#\[\]{}&*!|>'"%@`]/.test(text)
@@ -574,9 +588,70 @@ window.CadminPdsPolicyDetail = (function () {
         return text;
     }
 
+    function emptyRule() {
+        return {
+            id: "",
+            description: "",
+            target: "",
+            onTarget: [],
+            when: "",
+            outcome: "indeterminate",
+            otherwise: "indeterminate",
+            onPermit: [],
+            onDeny: []
+        };
+    }
+
+    function normalizeOutcome(value) {
+        const code = String(value || "indeterminate").trim();
+        return outcomeOptions.some(function (option) { return option.code === code; })
+            ? code
+            : "indeterminate";
+    }
+
+    function dumpStatementList(key, items, indent) {
+        const list = (items || []).filter(Boolean);
+        if (!list.length) {
+            return "";
+        }
+        let yaml = indent + key + ":\n";
+        list.forEach(function (statement) {
+            yaml += indent + "  - " + JSON.stringify(String(statement)) + "\n";
+        });
+        return yaml;
+    }
+
+    function dumpRuleYaml(rule) {
+        const indent = "    ";
+        let yaml = "  - id: " + yamlScalar(rule.id || "") + "\n";
+        yaml += indent + "description: " + yamlScalar(rule.description || "", indent) + "\n";
+        yaml += indent + "target: " + yamlScalar(rule.target || "", indent) + "\n";
+        yaml += dumpStatementList("onTarget", rule.onTarget, indent);
+        yaml += indent + "when: " + yamlScalar(rule.when || "", indent) + "\n";
+        const outcome = normalizeOutcome(rule.outcome);
+        if (outcome !== "indeterminate") {
+            yaml += indent + "outcome: " + yamlScalar(outcome) + "\n";
+        }
+        const otherwise = normalizeOutcome(rule.otherwise);
+        if (otherwise !== "indeterminate") {
+            yaml += indent + "otherwise: " + yamlScalar(otherwise) + "\n";
+        }
+        yaml += dumpStatementList("onPermit", rule.onPermit, indent);
+        yaml += dumpStatementList("onDeny", rule.onDeny, indent);
+        return yaml;
+    }
+
     function dumpPolicyYaml(policy) {
         const imports = (policy.imports || []).filter(Boolean);
         const onTarget = (policy.onTarget || []).filter(Boolean);
+        const rules = (policy.rules || []).filter(function (rule) {
+            return rule && (rule.id || rule.description || rule.target || rule.when
+                || (rule.onTarget && rule.onTarget.length)
+                || (rule.onPermit && rule.onPermit.length)
+                || (rule.onDeny && rule.onDeny.length)
+                || normalizeOutcome(rule.outcome) !== "indeterminate"
+                || normalizeOutcome(rule.otherwise) !== "indeterminate");
+        });
         let yaml = "id: " + yamlScalar(policy.id) + "\n";
         yaml += "description: " + yamlScalar(policy.description || "") + "\n";
         yaml += "version: " + yamlScalar(policy.version || "") + "\n";
@@ -597,6 +672,12 @@ window.CadminPdsPolicyDetail = (function () {
             yaml += "onTarget:\n";
             onTarget.forEach(function (statement) {
                 yaml += "  - " + JSON.stringify(String(statement)) + "\n";
+            });
+        }
+        if (rules.length) {
+            yaml += "rules:\n";
+            rules.forEach(function (rule) {
+                yaml += dumpRuleYaml(rule);
             });
         }
         return yaml;
@@ -652,6 +733,135 @@ window.CadminPdsPolicyDetail = (function () {
         return items;
     }
 
+    function lineIndent(line) {
+        const match = String(line || "").match(/^[ \t]*/);
+        return match ? match[0].length : 0;
+    }
+
+    function applyRuleField(rule, key, value) {
+        if (key === "onTarget" || key === "onPermit" || key === "onDeny") {
+            rule[key] = Array.isArray(value) ? value.filter(Boolean) : [];
+            return;
+        }
+        if (key === "outcome" || key === "otherwise") {
+            rule[key] = normalizeOutcome(value);
+            return;
+        }
+        if (key === "id" || key === "description" || key === "target" || key === "when") {
+            rule[key] = value == null ? "" : String(value);
+        }
+    }
+
+    function parseRulesYaml(text) {
+        const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+        let start = -1;
+        for (let i = 0; i < lines.length; i += 1) {
+            const match = lines[i].match(/^rules\s*:\s*(.*)$/);
+            if (!match) {
+                continue;
+            }
+            const rest = match[1].trim();
+            if (rest === "[]") {
+                return [];
+            }
+            if (rest.charAt(0) === "[" && rest.charAt(rest.length - 1) === "]") {
+                return [];
+            }
+            start = i + 1;
+            break;
+        }
+        if (start < 0) {
+            return [];
+        }
+        const rules = [];
+        let current = null;
+        let listKey = "";
+        let blockKey = "";
+        let blockLines = [];
+        let blockIndent = 0;
+
+        function finishBlock() {
+            if (!current || !blockKey) {
+                return;
+            }
+            applyRuleField(current, blockKey, blockLines.join("\n").replace(/\n+$/, ""));
+            blockKey = "";
+            blockLines = [];
+        }
+
+        function finishList() {
+            listKey = "";
+        }
+
+        for (let i = start; i < lines.length; i += 1) {
+            const line = lines[i];
+            if (/^[A-Za-z]/.test(line)) {
+                break;
+            }
+            if (blockKey) {
+                if (line === "" || lineIndent(line) > blockIndent) {
+                    const strip = blockIndent + 2;
+                    blockLines.push(line.length >= strip ? line.slice(strip) : line.replace(/^\s*/, ""));
+                    continue;
+                }
+                finishBlock();
+            }
+            const itemStart = line.match(/^(\s*)-\s+(.*)$/);
+            if (itemStart && itemStart[1].length <= 2) {
+                finishList();
+                current = emptyRule();
+                rules.push(current);
+                const rest = itemStart[2].trim();
+                if (rest) {
+                    const first = rest.match(/^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/);
+                    if (first) {
+                        applyRuleField(current, first[1], unquoteYaml(first[2]));
+                    }
+                }
+                continue;
+            }
+            if (!current) {
+                continue;
+            }
+            const prop = line.match(/^(\s+)([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/);
+            if (prop && prop[1].length >= 4 && prop[1].length <= 5) {
+                finishList();
+                const key = prop[2];
+                const rest = prop[3].trim();
+                if (key === "onTarget" || key === "onPermit" || key === "onDeny") {
+                    listKey = key;
+                    current[key] = [];
+                    if (rest === "[]") {
+                        listKey = "";
+                    } else if (rest.charAt(0) === "[" && rest.charAt(rest.length - 1) === "]") {
+                        current[key] = parseInlineList(rest);
+                        listKey = "";
+                    }
+                    continue;
+                }
+                if (rest === "|" || rest === ">" || rest === "|-" || rest === "|+") {
+                    blockKey = key;
+                    blockIndent = prop[1].length;
+                    blockLines = [];
+                    continue;
+                }
+                applyRuleField(current, key, unquoteYaml(rest));
+                continue;
+            }
+            if (listKey) {
+                const item = line.match(/^\s+-\s+(.*)$/);
+                if (item) {
+                    const value = unquoteYaml(item[1]);
+                    if (value) {
+                        current[listKey].push(value);
+                    }
+                }
+            }
+        }
+        finishBlock();
+        return rules;
+    }
+
     function parsePolicyYaml(text) {
         const result = {
             id: "",
@@ -661,7 +871,8 @@ window.CadminPdsPolicyDetail = (function () {
             imports: [],
             target: "",
             apply: "deny-overrides",
-            onTarget: []
+            onTarget: [],
+            rules: []
         };
         if (!text || !String(text).trim()) {
             return result;
@@ -693,7 +904,7 @@ window.CadminPdsPolicyDetail = (function () {
             }
             const key = keyMatch[1];
             const rest = keyMatch[2];
-            if (key === "imports" || key === "onTarget") {
+            if (key === "imports" || key === "onTarget" || key === "rules") {
                 return;
             }
             if (rest === "|" || rest === ">" || rest === "|-" || rest === "|+") {
@@ -710,6 +921,7 @@ window.CadminPdsPolicyDetail = (function () {
         finishBlock();
         result.imports = parseYamlList(text, "imports");
         result.onTarget = parseYamlList(text, "onTarget");
+        result.rules = parseRulesYaml(text);
         return result;
     }
 
@@ -727,6 +939,15 @@ window.CadminPdsPolicyDetail = (function () {
         const parsed = attachment && attachment.data ? parsePolicyYaml(decodeText(attachment.data)) : {};
         const imports = Array.isArray(parsed.imports) ? parsed.imports.filter(Boolean) : [];
         const onTarget = Array.isArray(parsed.onTarget) ? parsed.onTarget.filter(Boolean) : [];
+        const rules = Array.isArray(parsed.rules) ? parsed.rules.map(function (rule) {
+            return Object.assign(emptyRule(), rule, {
+                onTarget: Array.isArray(rule.onTarget) ? rule.onTarget.filter(Boolean) : [],
+                onPermit: Array.isArray(rule.onPermit) ? rule.onPermit.filter(Boolean) : [],
+                onDeny: Array.isArray(rule.onDeny) ? rule.onDeny.filter(Boolean) : [],
+                outcome: normalizeOutcome(rule.outcome),
+                otherwise: normalizeOutcome(rule.otherwise)
+            });
+        }) : [];
         return {
             id: parsed.id || library.name || "",
             description: parsed.description || library.description || "",
@@ -735,7 +956,8 @@ window.CadminPdsPolicyDetail = (function () {
             imports: imports,
             target: parsed.target || "",
             apply: parsed.apply || "deny-overrides",
-            onTarget: onTarget
+            onTarget: onTarget,
+            rules: rules
         };
     }
 
@@ -846,6 +1068,161 @@ window.CadminPdsPolicyDetail = (function () {
         return statements;
     }
 
+    function collectSpelList($container) {
+        const statements = [];
+        $container.find(".pd-spel-row").each(function () {
+            const cm = $(this).data("cm");
+            const value = (cm ? cm.getValue() : ($(this).find(".pd-spel-value").val() || "")).trim();
+            if (value) {
+                statements.push(value);
+            }
+        });
+        return statements;
+    }
+
+    function spelFieldValue($textarea) {
+        const $host = $textarea.closest(".spel-host");
+        const cm = $host.data("cm");
+        return (cm ? cm.getValue() : ($textarea.val() || "")).trim();
+    }
+
+    function collectRule($card) {
+        return {
+            id: ($card.find(".pd-rule-id").val() || "").trim(),
+            description: ($card.find(".pd-rule-description").val() || "").trim(),
+            target: spelFieldValue($card.find("textarea.pd-rule-target")),
+            onTarget: collectSpelList($card.find(".pd-rule-ontarget")),
+            when: spelFieldValue($card.find("textarea.pd-rule-when")),
+            outcome: normalizeOutcome($card.find(".pd-rule-outcome").val()),
+            otherwise: normalizeOutcome($card.find(".pd-rule-otherwise").val()),
+            onPermit: collectSpelList($card.find(".pd-rule-onpermit")),
+            onDeny: collectSpelList($card.find(".pd-rule-ondeny"))
+        };
+    }
+
+    function collectRules() {
+        const rules = [];
+        $("#pd-policy-rules .pd-rule-card").each(function () {
+            rules.push(collectRule($(this)));
+        });
+        return rules;
+    }
+
+    function outcomeSelectHtml(className, selected) {
+        const value = normalizeOutcome(selected);
+        return '<select class="form-select ' + className + '">' +
+            outcomeOptions.map(function (option) {
+                return '<option value="' + esc(option.code) + '"' +
+                    (option.code === value ? " selected" : "") + ">" +
+                    esc(option.display) + "</option>";
+            }).join("") +
+            "</select>";
+    }
+
+    function spelListRowHtml(value) {
+        return '<div class="d-flex align-items-stretch gap-2 mb-2 pd-spel-row">' +
+            '<div class="spel-host flex-grow-1 min-w-0">' +
+                '<textarea class="form-control font-monospace pd-spel-value" rows="2" placeholder="SpringEL statement">' +
+                    esc(value || "") + "</textarea>" +
+            "</div>" +
+            '<button class="btn btn-outline-danger align-self-start" type="button" data-spel-remove title="Remove statement">' +
+                '<i class="bi bi-x-lg"></i></button>' +
+            "</div>";
+    }
+
+    function ruleStatementListHtml(label, listClass, listKey, statements) {
+        const rows = (statements || []).length
+            ? statements.map(spelListRowHtml).join("")
+            : '<div class="text-muted small pd-spel-empty">None.</div>';
+        return '<div class="mb-3">' +
+            '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                '<label class="form-label mb-0">' + label + "</label>" +
+                '<button class="btn btn-sm btn-outline-primary" type="button" data-rule-list-add="' + listKey + '">' +
+                    '<i class="bi bi-plus-lg me-1"></i>Add statement</button>' +
+            "</div>" +
+            '<div class="' + listClass + '">' + rows + "</div>" +
+        "</div>";
+    }
+
+    function nextRuleId() {
+        const used = {};
+        $("#pd-policy-rules .pd-rule-id").each(function () {
+            used[($(this).val() || "").trim()] = true;
+        });
+        let n = 1;
+        while (used["rule-" + n]) {
+            n += 1;
+        }
+        return "rule-" + n;
+    }
+
+    function ruleCardHtml(rule) {
+        const item = Object.assign(emptyRule(), rule || {});
+        return '<div class="card border mb-3 pd-rule-card">' +
+            '<div class="card-header py-2 d-flex justify-content-between align-items-center bg-white">' +
+                '<span class="fw-semibold">Rule</span>' +
+                '<button class="btn btn-sm btn-outline-danger" type="button" data-rule-remove title="Remove rule">' +
+                    '<i class="bi bi-trash"></i></button>' +
+            "</div>" +
+            '<div class="card-body">' +
+                '<div class="row">' +
+                    '<div class="col-md-4">' +
+                        field("ID", '<input class="form-control font-monospace pd-rule-id" placeholder="Unique within this policy" value="' +
+                            esc(item.id) + '">') +
+                    "</div>" +
+                    '<div class="col-md-8">' +
+                        field("Description", '<input class="form-control pd-rule-description" value="' +
+                            esc(item.description) + '">') +
+                    "</div>" +
+                "</div>" +
+                field("Target", '<div class="spel-host">' +
+                    '<textarea class="form-control font-monospace pd-rule-target" rows="2" placeholder="SpringEL predicate">' +
+                        esc(item.target) + "</textarea></div>" +
+                    '<div class="form-text">If this predicate is true, the rule is evaluated.</div>') +
+                ruleStatementListHtml("On target", "pd-rule-ontarget", "ontarget", item.onTarget) +
+                field("When", '<div class="spel-host">' +
+                    '<textarea class="form-control font-monospace pd-rule-when" rows="2" placeholder="SpringEL rule logic">' +
+                        esc(item.when) + "</textarea></div>" +
+                    '<div class="form-text">Rule logic evaluated when the rule target is true.</div>') +
+                '<div class="row">' +
+                    '<div class="col-md-6">' +
+                        field("Outcome", outcomeSelectHtml("pd-rule-outcome", item.outcome) +
+                            '<div class="form-text">Result when <code>when</code> is true. Indeterminate is omitted from YAML.</div>') +
+                    "</div>" +
+                    '<div class="col-md-6">' +
+                        field("Otherwise", outcomeSelectHtml("pd-rule-otherwise", item.otherwise) +
+                            '<div class="form-text">Result when <code>when</code> is false. Indeterminate is omitted from YAML.</div>') +
+                    "</div>" +
+                "</div>" +
+                ruleStatementListHtml("On permit", "pd-rule-onpermit", "onpermit", item.onPermit) +
+                ruleStatementListHtml("On deny", "pd-rule-ondeny", "ondeny", item.onDeny) +
+            "</div>" +
+        "</div>";
+    }
+
+    function attachRuleEditors($card) {
+        $card.find("textarea.pd-rule-target, textarea.pd-rule-when").each(function () {
+            const cm = attachSpelEditor(this, "3.5rem");
+            if (cm) {
+                $(this).closest(".spel-host").data("cm", cm);
+            }
+        });
+        $card.find(".pd-spel-row").each(function () {
+            attachOnTargetEditor($(this));
+        });
+    }
+
+    function renderRules(rules) {
+        if (!rules || !rules.length) {
+            $("#pd-policy-rules").html('<div class="text-muted small" id="pd-rules-empty">No rules.</div>');
+            return;
+        }
+        $("#pd-policy-rules").html(rules.map(ruleCardHtml).join(""));
+        $("#pd-policy-rules .pd-rule-card").each(function () {
+            attachRuleEditors($(this));
+        });
+    }
+
     function collectPolicyForm() {
         return {
             id: ($("#pd-policy-id").val() || "").trim(),
@@ -855,7 +1232,8 @@ window.CadminPdsPolicyDetail = (function () {
             imports: collectImports(($("#pd-policy-id").val() || "").trim()),
             target: (targetEditor ? targetEditor.getValue() : ($("#pd-policy-target").val() || "")).trim(),
             apply: $("#pd-policy-apply").val() || "deny-overrides",
-            onTarget: collectOnTarget()
+            onTarget: collectOnTarget(),
+            rules: collectRules()
         };
     }
 
@@ -965,6 +1343,15 @@ window.CadminPdsPolicyDetail = (function () {
                             '<div id="pd-policy-ontarget"></div>' +
                             '<div class="form-text">SpringEL statements run when the target predicate is true.</div>' +
                         "</div>" +
+                        '<div class="mt-4">' +
+                            '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                                '<label class="form-label mb-0">Rules</label>' +
+                                '<button class="btn btn-sm btn-outline-primary" type="button" id="pd-policy-rule-add">' +
+                                    '<i class="bi bi-plus-lg me-1"></i>Add rule</button>' +
+                            "</div>" +
+                            '<div id="pd-policy-rules"></div>' +
+                            '<div class="form-text">Rules are omitted from YAML when this list is empty.</div>' +
+                        "</div>" +
                     "</div>" +
                 "</form>" +
             "</div>" +
@@ -988,6 +1375,7 @@ window.CadminPdsPolicyDetail = (function () {
                 '<div class="col-lg-6">' + card("Related artifacts", "pds-artifact-rows",
                     ["Type", "Display", ""], "#pd-artifact-modal", "Add") + "</div>" +
             "</div>" +
+            CadminResourceGraph.card() +
             viewModal("pd-yaml-modal", "Generated YAML",
                 '<div class="yaml-preview-host">' +
                     '<textarea id="pd-yaml-preview" class="form-control font-monospace" readonly></textarea>' +
@@ -1039,7 +1427,7 @@ window.CadminPdsPolicyDetail = (function () {
                 field("Resource", '<input class="form-control" id="pd-art-resource" placeholder="e.g. Library/123">'),
                 "pd-artifact-form")
         );
-
+        CadminResourceGraph.mount(library);
         renderBasics();
         renderIdentity();
         renderPurpose();
@@ -1101,6 +1489,7 @@ window.CadminPdsPolicyDetail = (function () {
         $("#pd-policy-apply").val(policy.apply || "deny-overrides");
         renderImportRows(policy.imports);
         renderOnTargetRows(policy.onTarget);
+        renderRules(policy.rules);
         targetEditor = attachSpelEditor(document.getElementById("pd-policy-target"), "6.5rem");
     }
 
@@ -1482,6 +1871,43 @@ window.CadminPdsPolicyDetail = (function () {
             $row.remove();
             if (!$("#pd-policy-ontarget .pd-ontarget-row").length) {
                 renderOnTargetRows([]);
+            }
+        });
+
+        $root.on("click.pdsdetail", "#pd-policy-rule-add", function () {
+            $("#pd-rules-empty").remove();
+            const $card = $(ruleCardHtml(Object.assign(emptyRule(), { id: nextRuleId() })));
+            $("#pd-policy-rules").append($card);
+            attachRuleEditors($card);
+        });
+
+        $root.on("click.pdsdetail", "[data-rule-remove]", function () {
+            const $card = $(this).closest(".pd-rule-card");
+            $card.find(".spel-host, .pd-spel-row").each(function () {
+                teardownCm($(this));
+            });
+            $card.remove();
+            if (!$("#pd-policy-rules .pd-rule-card").length) {
+                renderRules([]);
+            }
+        });
+
+        $root.on("click.pdsdetail", "[data-rule-list-add]", function () {
+            const key = $(this).attr("data-rule-list-add");
+            const $list = $(this).closest(".mb-3").find(".pd-rule-" + key);
+            $list.find(".pd-spel-empty").remove();
+            const $row = $(spelListRowHtml(""));
+            $list.append($row);
+            attachOnTargetEditor($row);
+        });
+
+        $root.on("click.pdsdetail", "[data-spel-remove]", function () {
+            const $list = $(this).closest(".pd-rule-ontarget, .pd-rule-onpermit, .pd-rule-ondeny");
+            const $row = $(this).closest(".pd-spel-row");
+            teardownCm($row);
+            $row.remove();
+            if ($list.length && !$list.find(".pd-spel-row").length) {
+                $list.html('<div class="text-muted small pd-spel-empty">None.</div>');
             }
         });
 

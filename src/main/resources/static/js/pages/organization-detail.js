@@ -155,8 +155,9 @@ window.CadminOrganizationDetail = (function () {
 
     function codeStatusBadge(status) {
         const kind = status === "active" ? "success"
-            : status === "suspended" || status === "error" || status === "off" ? "warning"
-                : "secondary";
+            : status === "error" ? "danger"
+                : status === "limited" || status === "suspended" ? "warning"
+                    : "secondary";
         return '<span class="badge text-bg-' + kind + '">' + esc(status || "—") + "</span>";
     }
 
@@ -214,12 +215,15 @@ window.CadminOrganizationDetail = (function () {
         });
     }
 
-    function card(title, tableId, cols, addTarget, addLabel) {
+    function card(title, tableId, cols, addTarget, addLabel, extraHeader) {
         return '<div class="card shadow mb-4">' +
             '<div class="card-header py-3 d-flex justify-content-between align-items-center">' +
                 "<h6 class=\"m-0\">" + title + "</h6>" +
-                '<button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="' + addTarget + '">' +
-                    '<i class="bi bi-plus-lg me-1"></i>' + addLabel + "</button>" +
+                '<div class="d-flex gap-2">' +
+                    (extraHeader || "") +
+                    '<button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="' + addTarget + '">' +
+                        '<i class="bi bi-plus-lg me-1"></i>' + addLabel + "</button>" +
+                "</div>" +
             "</div>" +
             '<div class="card-body">' +
                 '<div class="table-responsive">' +
@@ -285,7 +289,8 @@ window.CadminOrganizationDetail = (function () {
                 '<div class="col-lg-6">' + card("Organization affiliations", "org-affil-rows",
                     ["Organization", "Role", "Status", ""], "#od-affil-modal", "Add") + "</div>" +
                 '<div class="col-lg-6">' + card("Endpoints", "org-endpoint-rows",
-                    ["Name", "Type", "Address", "Status", ""], "#od-endpoint-modal", "Add") + "</div>" +
+                    ["Name", "Type", "Address", "Status", ""], "#od-endpoint-modal", "Add",
+                    '<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#od-ep-attach-modal">Attach</button>') + "</div>" +
             "</div>" +
             '<div class="row">' +
                 '<div class="col-lg-6">' + card("Contacts", "org-contact-rows",
@@ -293,6 +298,7 @@ window.CadminOrganizationDetail = (function () {
                 '<div class="col-lg-6">' + card("Practitioners", "org-role-rows",
                     ["Practitioner", "Role", "Status", ""], "#od-role-modal", "Add") + "</div>" +
             "</div>" +
+            CadminResourceGraph.card() +
             modal("od-basic-modal", "Edit basic details",
                 field("Name", '<input class="form-control" id="od-name" required>') +
                 '<div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="od-active">' +
@@ -333,8 +339,14 @@ window.CadminOrganizationDetail = (function () {
                 field("Name", '<input class="form-control" id="od-ep-name" required>') +
                 field("Connection type", '<select class="form-select" id="od-ep-type">' + optionsHtml(connectionTypes, "code", "display") + "</select>") +
                 field("Address", '<input class="form-control" id="od-ep-address" required placeholder="https://example.org/fhir">') +
-                field("Status", '<select class="form-select" id="od-ep-status"><option value="active">Active</option><option value="off">Off</option><option value="test">Test</option><option value="suspended">Suspended</option></select>'),
+                field("Status", '<select class="form-select" id="od-ep-status">' +
+                    '<option value="active">Active</option><option value="limited">Limited</option>' +
+                    '<option value="suspended">Suspended</option><option value="error">Error</option>' +
+                    '<option value="off">Off</option><option value="entered-in-error">Entered in error</option></select>'),
                 "od-endpoint-form") +
+            modal("od-ep-attach-modal", "Attach endpoint",
+                field("Endpoint", '<select class="form-select" id="od-ep-attach" required><option value="">Select…</option></select>'),
+                "od-ep-attach-form") +
             modal("od-contact-modal", "Add contact",
                 field("Purpose", '<select class="form-select" id="od-ct-purpose">' + optionsHtml(contactPurposes, "code", "display") + "</select>") +
                 field("Name", '<input class="form-control" id="od-ct-name" required>') +
@@ -356,7 +368,7 @@ window.CadminOrganizationDetail = (function () {
                     '<label class="form-check-label" for="od-pr-edit-active">Active</label></div>',
                 "od-role-edit-form")
         );
-
+        CadminResourceGraph.mount(org);
         renderBasics();
         loadChildren();
         loadLocations();
@@ -380,6 +392,7 @@ window.CadminOrganizationDetail = (function () {
         $("#od-role-modal").on("show.bs.modal", function () {
             fillSelect("#od-pr-practitioner", "/Practitioner?_count=200&_sort=name", personName);
         });
+        $("#od-ep-attach-modal").on("show.bs.modal", fillEndpointAttach);
         $("#od-role-edit-modal").on("show.bs.modal", populateRoleEditForm);
         $("#od-role-edit-modal").on("hidden.bs.modal", function () {
             editingRole = null;
@@ -494,23 +507,64 @@ window.CadminOrganizationDetail = (function () {
         });
     }
 
+    function endpointRow(ep, linked) {
+        return "<tr>" +
+            '<td><a href="#/endpoints/' + encodeURIComponent(ep.id) + '">' + esc(ep.name || ep.id) + "</a></td>" +
+            "<td>" + esc(conceptLabel(ep.connectionType)) + "</td>" +
+            "<td><code>" + esc(ep.address || "—") + "</code></td>" +
+            "<td>" + codeStatusBadge(ep.status) + "</td>" +
+            '<td class="text-end">' + (linked
+                ? '<button class="btn btn-sm btn-outline-secondary" type="button" data-unlink-endpoint="' +
+                    esc(ep.id) + '" title="Unlink" aria-label="Unlink"><i class="bi bi-x-lg"></i></button>'
+                : "") + "</td>" +
+            "</tr>";
+    }
+
+    function fillEndpointAttach() {
+        const linked = (org.endpoint || []).map(refId).filter(Boolean);
+        CadminApi.fhir("/Endpoint?_count=200&_sort=name").done(function (bundle) {
+            const options = ['<option value="">Select…</option>'].concat(bundleResources(bundle)
+                .filter(function (ep) { return linked.indexOf(ep.id) === -1; })
+                .map(function (ep) {
+                    const label = (ep.name || ep.id) + (ep.address ? " · " + ep.address : "");
+                    return '<option value="' + esc(ep.id) + '">' + esc(label) + "</option>";
+                }));
+            $("#od-ep-attach").html(options.join(""));
+        });
+    }
+
     function loadEndpoints() {
+        const refIds = (org.endpoint || []).map(refId).filter(Boolean);
         CadminApi.fhir("/Endpoint?organization=" + encodeURIComponent(org.id) + "&_count=50&_sort=name").done(function (bundle) {
-            const rows = bundleResources(bundle);
-            if (!rows.length) {
-                $("#org-endpoint-rows").html(emptyRow(5, "No endpoints."));
+            const byId = {};
+            bundleResources(bundle).forEach(function (ep) {
+                byId[ep.id] = ep;
+            });
+            const missing = refIds.filter(function (id) { return !byId[id]; });
+
+            function renderRows() {
+                const rows = Object.keys(byId).map(function (id) { return byId[id]; });
+                if (!rows.length) {
+                    $("#org-endpoint-rows").html(emptyRow(5, "No endpoints."));
+                    return;
+                }
+                $("#org-endpoint-rows").html(rows.map(function (ep) {
+                    return endpointRow(ep, refIds.indexOf(ep.id) !== -1);
+                }).join(""));
+            }
+
+            if (!missing.length) {
+                renderRows();
                 return;
             }
-            $("#org-endpoint-rows").html(rows.map(function (ep) {
-                return "<tr>" +
-                    "<td>" + esc(ep.name || ep.id) + "</td>" +
-                    "<td>" + esc(conceptLabel(ep.connectionType)) + "</td>" +
-                    "<td><code>" + esc(ep.address || "—") + "</code></td>" +
-                    "<td>" + codeStatusBadge(ep.status) + "</td>" +
-                    '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-delete="/Endpoint/' +
-                        encodeURIComponent(ep.id) + '" data-reload="endpoints" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td>' +
-                    "</tr>";
-            }).join(""));
+            CadminApi.fhir("/Endpoint?_id=" + missing.map(encodeURIComponent).join(",") + "&_count=50").done(function (extra) {
+                bundleResources(extra).forEach(function (ep) {
+                    byId[ep.id] = ep;
+                });
+                renderRows();
+            }).fail(function () {
+                renderRows();
+            });
         }).fail(function (xhr) {
             $("#org-endpoint-rows").html(emptyRow(5, "Unable to load endpoints."));
             fail("Load endpoints", xhr);
@@ -759,6 +813,20 @@ window.CadminOrganizationDetail = (function () {
             });
         });
 
+        $root.on("click.orgdetail", "[data-unlink-endpoint]", function () {
+            const id = $(this).attr("data-unlink-endpoint");
+            org.endpoint = (org.endpoint || []).filter(function (ref) {
+                return refId(ref) !== id;
+            });
+            if (!org.endpoint.length) {
+                delete org.endpoint;
+            }
+            saveOrg(function () {
+                alertMsg("success", "Endpoint unlinked.");
+                loadEndpoints();
+            });
+        });
+
         $root.on("click.orgdetail", "[data-unlink-org]", function () {
             const id = $(this).attr("data-unlink-org");
             CadminApi.fhir("/Organization/" + encodeURIComponent(id)).done(function (child) {
@@ -956,6 +1024,25 @@ window.CadminOrganizationDetail = (function () {
                 loadAffiliations();
             }).fail(function (xhr) {
                 fail("Create affiliation", xhr);
+            });
+        });
+
+        $("#od-ep-attach-form").on("submit", function (event) {
+            event.preventDefault();
+            const id = $("#od-ep-attach").val();
+            if (!id) {
+                return;
+            }
+            const label = ($("#od-ep-attach option:selected").text() || "").split(" · ")[0];
+            org.endpoint = org.endpoint || [];
+            org.endpoint.push({
+                reference: "Endpoint/" + id,
+                display: label
+            });
+            saveOrg(function () {
+                hideModal("od-ep-attach-modal");
+                alertMsg("success", "Endpoint attached.");
+                loadEndpoints();
             });
         });
 

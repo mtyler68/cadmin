@@ -1,5 +1,17 @@
 CadminApp.register("patients", function (params) {
-    const initialQuery = params[0] ? decodeURIComponent(params[0]) : "";
+    const token = CadminApi.routeParamId(params);
+    if (token) {
+        CadminApi.fhir("/Patient/" + encodeURIComponent(token)).done(function (patient) {
+            CadminPatientDetail.render(patient);
+        }).fail(function () {
+            renderPatientList(token);
+        });
+        return;
+    }
+    renderPatientList("");
+});
+
+function renderPatientList(initialQuery) {
     const statusOptions = [
         { code: "proposed", display: "Proposed" },
         { code: "active", display: "Active" },
@@ -39,10 +51,11 @@ CadminApp.register("patients", function (params) {
             '<div class="card-body">' +
                 '<div class="table-responsive">' +
                     '<table class="table table-hover align-middle">' +
-                        "<thead><tr><th>Name</th><th>Gender</th><th>Birth date</th><th>ID</th><th></th></tr></thead>" +
-                        '<tbody id="patient-rows"><tr><td colspan="5" class="text-muted">Loading…</td></tr></tbody>' +
+                        "<thead><tr><th>Name</th><th>Gender</th><th>Birth date</th><th>Status</th><th>ID</th><th></th></tr></thead>" +
+                        '<tbody id="patient-rows"><tr><td colspan="6" class="text-muted">Loading…</td></tr></tbody>' +
                     "</table>" +
                 "</div>" +
+                '<div class="list-pager" id="patient-pager"></div>' +
             "</div>" +
         "</div>" +
         '<div class="modal fade" id="create-patient-modal" tabindex="-1">' +
@@ -190,30 +203,45 @@ CadminApp.register("patients", function (params) {
         showModal("offer-care-team-modal");
     }
 
-    function load(query) {
-        let path = "/Patient?_count=50&_sort=-_lastUpdated";
+    let listPage = 0;
+
+    function load(query, page) {
+        listPage = typeof page === "number" ? page : 0;
+        let path = "/Patient?_sort=-_lastUpdated";
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(path).done(function (bundle) {
-            const entries = (bundle.entry || []).map(function (e) { return e.resource; }).filter(Boolean);
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+            const entries = CadminApi.bundleResources(bundle, "Patient");
+            CadminApi.renderPager("#patient-pager", {
+                page: listPage,
+                returned: entries.length,
+                total: bundle.total,
+                bundle: bundle,
+                onPage: function (nextPage) { load(query, nextPage); }
+            });
             if (!entries.length) {
-                $("#patient-rows").html('<tr><td colspan="5" class="text-muted">No patients found. Create one or start HAPI FHIR.</td></tr>');
+                $("#patient-rows").html('<tr><td colspan="6" class="text-muted">No patients found. Create one or start HAPI FHIR.</td></tr>');
                 return;
             }
             const rows = entries.map(function (p) {
+                const active = p.active !== false;
                 return "<tr>" +
-                    "<td>" + CadminApi.escapeHtml(patientName(p)) + "</td>" +
+                    "<td>" + CadminApi.resourceLink("#/patients/" + encodeURIComponent(p.id), patientName(p)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(p.gender || "—") + "</td>" +
                     "<td>" + CadminApi.escapeHtml(p.birthDate || "—") + "</td>" +
+                    "<td>" + (active
+                        ? '<span class="badge text-bg-success">Active</span>'
+                        : '<span class="badge text-bg-secondary">Inactive</span>') + "</td>" +
                     "<td><code>" + CadminApi.escapeHtml(p.id) + "</code></td>" +
-                    '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="#/resources/Patient/' +
+                    '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="#/patients/' +
                         encodeURIComponent(p.id) + '" title="Open" aria-label="Open"><i class="bi bi-eye"></i></a></td>' +
                     "</tr>";
             });
             $("#patient-rows").html(rows.join(""));
         }).fail(function (xhr) {
-            $("#patient-rows").html('<tr><td colspan="5" class="text-danger">Unable to load patients from /fhir.</td></tr>');
+            $("#patient-pager").empty();
+            $("#patient-rows").html('<tr><td colspan="6" class="text-danger">Unable to load patients from /fhir.</td></tr>');
             CadminApi.showAlert("#patient-alert", "danger",
                 "FHIR request failed (" + xhr.status + "). Is the HAPI FHIR stack running?");
         });
@@ -318,4 +346,4 @@ CadminApp.register("patients", function (params) {
     });
 
     load(initialQuery);
-});
+}

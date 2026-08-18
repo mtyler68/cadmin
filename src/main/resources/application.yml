@@ -35,6 +35,9 @@ cadmin:
           - USER
   fhir:
     uri: ${CADMIN_FHIR_URI:http://localhost:8081}
+  geocode:
+    uri: ${CADMIN_GEOCODE_URI:https://nominatim.openstreetmap.org}
+    user-agent: FHIR-Box/0.1 (io.cadmin.gateway; location-geocoder)
 
 management:
   endpoints:

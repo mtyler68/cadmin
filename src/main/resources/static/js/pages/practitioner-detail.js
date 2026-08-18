@@ -267,6 +267,7 @@ window.CadminPractitionerDetail = (function () {
                         ["Patient", "Care team", "Role", ""], "#prd-team-modal", "Add") + "</div>" +
                 "</div>"
                 : "") +
+            CadminResourceGraph.card() +
             modal("prd-basic-modal", "Edit basic details",
                 field("Prefix", '<input class="form-control" id="prd-prefix" placeholder="Dr">') +
                 field("Given name", '<input class="form-control" id="prd-given" required>') +
@@ -331,7 +332,7 @@ window.CadminPractitionerDetail = (function () {
                 field("Role", '<select class="form-select" id="prd-ct-role">' + optionsHtml(practitionerRoles) + "</select>"),
                 "prd-team-form")
         );
-
+        CadminResourceGraph.mount(practitioner);
         renderBasics();
         renderIdentifiers();
         renderTelecom();
@@ -460,9 +461,9 @@ window.CadminPractitionerDetail = (function () {
             const patient = patients[patientId];
             const patientLabel = patient ? personName(patient) : refLabel(team.subject);
             const patientHtml = patientId
-                ? '<a href="#/resources/Patient/' + encodeURIComponent(patientId) + '">' + esc(patientLabel) + "</a>"
+                ? '<a href="#/patients/' + encodeURIComponent(patientId) + '">' + esc(patientLabel) + "</a>"
                 : esc(patientLabel || "—");
-            const teamHtml = '<a href="#/resources/CareTeam/' + encodeURIComponent(team.id) + '">' +
+            const teamHtml = '<a href="#/care-teams/' + encodeURIComponent(team.id) + '">' +
                 esc(team.name || team.id) + "</a>";
             return "<tr><td>" + patientHtml + "</td><td>" + teamHtml + "</td><td>" + esc(participantRole(team)) + "</td>" +
                 '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove-team="' +

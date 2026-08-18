@@ -45,6 +45,7 @@ function renderPdsPolicyList(initialQuery) {
                         '<tbody id="pds-policy-rows"><tr><td colspan="7" class="text-muted">Loading…</td></tr></tbody>' +
                     '</table>' +
                 '</div>' +
+                '<div class="list-pager" id="pds-policy-pager"></div>' +
             '</div>' +
         '</div>' +
         '<div class="modal fade" id="create-pds-policy-modal" tabindex="-1">' +
@@ -278,20 +279,30 @@ function renderPdsPolicyList(initialQuery) {
         $("#dup-version").removeClass("is-invalid");
     }
 
-    function load(query) {
-        let path = "/Library?type=" + encodeURIComponent(libraryType) + "&_count=50&_sort=-_lastUpdated";
+    let listPage = 0;
+
+    function load(query, page) {
+        listPage = typeof page === "number" ? page : 0;
+        let path = "/Library?type=" + encodeURIComponent(libraryType) + "&_sort=-_lastUpdated";
         if (query) {
             path += "&title=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(path).done(function (bundle) {
-            const entries = (bundle.entry || []).map(function (e) { return e.resource; }).filter(Boolean);
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+            const entries = CadminApi.bundleResources(bundle, "Library");
+            CadminApi.renderPager("#pds-policy-pager", {
+                page: listPage,
+                returned: entries.length,
+                total: bundle.total,
+                bundle: bundle,
+                onPage: function (nextPage) { load(query, nextPage); }
+            });
             if (!entries.length) {
                 $("#pds-policy-rows").html('<tr><td colspan="7" class="text-muted">No PDS policies found. Create one or start HAPI FHIR.</td></tr>');
                 return;
             }
             const rows = entries.map(function (library) {
                 return "<tr>" +
-                    "<td>" + esc(library.title || library.name || "Untitled") + "</td>" +
+                    "<td>" + CadminApi.resourceLink("#/pds-policies/" + encodeURIComponent(library.id), library.title || library.name || "Untitled") + "</td>" +
                     "<td>" + esc(library.description || "—") + "</td>" +
                     "<td><code>" + esc(library.version || "—") + "</code></td>" +
                     "<td>" + statusBadge(library.status) + "</td>" +
@@ -307,6 +318,7 @@ function renderPdsPolicyList(initialQuery) {
             });
             $("#pds-policy-rows").html(rows.join(""));
         }).fail(function (xhr) {
+            $("#pds-policy-pager").empty();
             $("#pds-policy-rows").html('<tr><td colspan="7" class="text-danger">Unable to load libraries from /fhir.</td></tr>');
             CadminApi.showAlert("#pds-policy-alert", "danger",
                 "FHIR request failed (" + xhr.status + "). Is the HAPI FHIR stack running?");

@@ -237,6 +237,7 @@ window.CadminCaregiverDetail = (function () {
                         ["Patient", "Care team", "Role", ""], "#cgd-team-modal", "Add") + "</div>"
                     : "") +
             "</div>" +
+            CadminResourceGraph.card() +
             modal("cgd-basic-modal", "Edit basic details",
                 field("Prefix", '<input class="form-control" id="cgd-prefix">') +
                 field("Given name", '<input class="form-control" id="cgd-given" required>') +
@@ -279,7 +280,7 @@ window.CadminCaregiverDetail = (function () {
                     "cgd-team-form")
                 : "")
         );
-
+        CadminResourceGraph.mount(caregiver);
         renderBasics();
         renderIdentifiers();
         renderTelecom();
@@ -384,9 +385,9 @@ window.CadminCaregiverDetail = (function () {
                 const patient = patients[patientId];
                 const patientName = patient ? personName(patient) : refLabel(team.subject);
                 const patientHtml = patientId
-                    ? '<a href="#/resources/Patient/' + encodeURIComponent(patientId) + '">' + esc(patientName) + "</a>"
+                    ? '<a href="#/patients/' + encodeURIComponent(patientId) + '">' + esc(patientName) + "</a>"
                     : esc(patientName || "—");
-                const teamHtml = '<a href="#/resources/CareTeam/' + encodeURIComponent(team.id) + '">' +
+                const teamHtml = '<a href="#/care-teams/' + encodeURIComponent(team.id) + '">' +
                     esc(team.name || team.id) + "</a>";
                 return "<tr><td>" + patientHtml + "</td><td>" + teamHtml + "</td><td>" + esc(participantRole(team)) + "</td>" +
                     '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove-team="' +

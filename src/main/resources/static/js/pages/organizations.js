@@ -48,6 +48,7 @@ function renderOrganizationList(initialQuery) {
                         '<tbody id="organization-rows"><tr><td colspan="6" class="text-muted">Loading…</td></tr></tbody>' +
                     '</table>' +
                 '</div>' +
+                '<div class="list-pager" id="organization-pager"></div>' +
             '</div>' +
         '</div>' +
         '<div class="modal fade" id="create-organization-modal" tabindex="-1">' +
@@ -120,13 +121,23 @@ function renderOrganizationList(initialQuery) {
         });
     }
 
-    function load(query) {
-        let path = "/Organization?_count=50&_sort=-_lastUpdated";
+    let listPage = 0;
+
+    function load(query, page) {
+        listPage = typeof page === "number" ? page : 0;
+        let path = "/Organization?_sort=-_lastUpdated";
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(path).done(function (bundle) {
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
             const entries = organizationEntries(bundle);
+            CadminApi.renderPager("#organization-pager", {
+                page: listPage,
+                returned: entries.length,
+                total: bundle.total,
+                bundle: bundle,
+                onPage: function (nextPage) { load(query, nextPage); }
+            });
             if (!entries.length) {
                 $("#organization-rows").html('<tr><td colspan="6" class="text-muted">No organizations found. Create one or start HAPI FHIR.</td></tr>');
                 return;
@@ -134,7 +145,7 @@ function renderOrganizationList(initialQuery) {
             const rows = entries.map(function (org) {
                 const active = org.active !== false;
                 return "<tr>" +
-                    "<td>" + CadminApi.escapeHtml(org.name || "Unnamed") + "</td>" +
+                    "<td>" + CadminApi.resourceLink("#/organizations/" + encodeURIComponent(org.id), org.name || "Unnamed") + "</td>" +
                     "<td>" + CadminApi.escapeHtml(organizationPartOf(org)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(organizationType(org)) + "</td>" +
                     "<td>" + (active
@@ -147,6 +158,7 @@ function renderOrganizationList(initialQuery) {
             });
             $("#organization-rows").html(rows.join(""));
         }).fail(function (xhr) {
+            $("#organization-pager").empty();
             $("#organization-rows").html('<tr><td colspan="6" class="text-danger">Unable to load organizations from /fhir.</td></tr>');
             CadminApi.showAlert("#organization-alert", "danger",
                 "FHIR request failed (" + xhr.status + "). Is the HAPI FHIR stack running?");

@@ -11,6 +11,9 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2.3.0/dist/iconify-icon.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/addon/hint/show-hint.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vis-network@9.1.13/styles/vis-network.min.css">
     <link href="/css/cadmin.css" rel="stylesheet">
 </head>
 <body id="page-top">
@@ -69,6 +72,25 @@
         <li class="nav-item admin-only" data-route="search-parameters">
             <a class="nav-link" href="#/search-parameters"><i class="bi bi-search"></i><span>Search Parameters</span></a>
         </li>
+        <li class="nav-item admin-only" data-route="questionnaires">
+            <a class="nav-link" href="#/questionnaires"><i class="bi bi-ui-checks"></i><span>Questionnaires</span></a>
+        </li>
+        <hr class="sidebar-divider admin-only">
+        <div class="sidebar-heading admin-only">Privacy</div>
+        <li class="nav-item admin-only" data-route="consents">
+            <a class="nav-link" href="#/consents"><i class="bi bi-shield-check"></i><span>Consents</span></a>
+        </li>
+        <hr class="sidebar-divider admin-only">
+        <div class="sidebar-heading admin-only">Integrations</div>
+        <li class="nav-item admin-only" data-route="subscription-topics">
+            <a class="nav-link" href="#/subscription-topics"><i class="bi bi-bookmark-star"></i><span>Subscription topics</span></a>
+        </li>
+        <li class="nav-item admin-only" data-route="subscriptions">
+            <a class="nav-link" href="#/subscriptions"><i class="bi bi-broadcast"></i><span>Subscriptions</span></a>
+        </li>
+        <li class="nav-item admin-only" data-route="endpoints">
+            <a class="nav-link" href="#/endpoints"><i class="bi bi-hdd-network"></i><span>Endpoints</span></a>
+        </li>
         <hr class="sidebar-divider">
         <div class="sidebar-heading">Utils</div>
         <li class="nav-item" data-route="resources">
@@ -76,6 +98,9 @@
         </li>
         <li class="nav-item" data-route="capabilities">
             <a class="nav-link" href="#/capabilities"><i class="bi bi-clipboard-data"></i><span>FHIR Capabilities</span></a>
+        </li>
+        <li class="nav-item admin-only" data-route="demo-data">
+            <a class="nav-link" href="#/demo-data"><i class="bi bi-magic"></i><span>Demo data</span></a>
         </li>
         <hr class="sidebar-divider d-none d-md-block">
         <div class="text-center d-none d-md-inline">
@@ -135,9 +160,15 @@
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/addon/search/searchcursor.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/addon/search/match-highlighter.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/yaml/yaml.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/addon/hint/show-hint.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.13/standalone/umd/vis-network.min.js"></script>
 <script src="/js/api.js"></script>
+<script src="/js/resource-graph.js"></script>
+<script src="/js/spel-completion-policy.js"></script>
 <script src="/js/app.js"></script>
 <script src="/js/pages/dashboard.js"></script>
+<script src="/js/pages/patient-detail.js"></script>
 <script src="/js/pages/patients.js"></script>
 <script src="/js/pages/caregiver-detail.js"></script>
 <script src="/js/pages/caregivers.js"></script>
@@ -147,14 +178,27 @@
 <script src="/js/pages/devices.js"></script>
 <script src="/js/pages/organization-detail.js"></script>
 <script src="/js/pages/organizations.js"></script>
+<script src="/js/pages/care-team-detail.js"></script>
 <script src="/js/pages/care-teams.js"></script>
 <script src="/js/pages/location-detail.js"></script>
 <script src="/js/pages/locations.js"></script>
 <script src="/js/pages/pds-policy-detail.js"></script>
 <script src="/js/pages/pds-policies.js"></script>
 <script src="/js/pages/search-parameters.js"></script>
+<script src="/js/pages/questionnaire-detail.js"></script>
+<script src="/js/pages/questionnaires.js"></script>
+<script src="/js/pages/subscription-topic-detail.js"></script>
+<script src="/js/pages/subscription-topics.js"></script>
+<script src="/js/pages/subscription-detail.js"></script>
+<script src="/js/pages/subscriptions.js"></script>
+<script src="/js/pages/endpoint-detail.js"></script>
+<script src="/js/pages/endpoints.js"></script>
+<script src="/js/pages/consent-detail.js"></script>
+<script src="/js/pages/consents.js"></script>
 <script src="/js/pages/resources.js"></script>
 <script src="/js/pages/capabilities.js"></script>
+<script src="/js/demo-data-generators.js"></script>
+<script src="/js/pages/demo-data.js"></script>
 <script src="/js/pages/users.js"></script>
 <script src="/js/pages/settings.js"></script>
 </body>

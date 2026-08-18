@@ -1,5 +1,17 @@
 CadminApp.register("care-teams", function (params) {
-    const initialQuery = params[0] ? decodeURIComponent(params[0]) : "";
+    const token = CadminApi.routeParamId(params);
+    if (token) {
+        CadminApi.fhir("/CareTeam/" + encodeURIComponent(token)).done(function (team) {
+            CadminCareTeamDetail.render(team);
+        }).fail(function () {
+            renderCareTeamList(token);
+        });
+        return;
+    }
+    renderCareTeamList("");
+});
+
+function renderCareTeamList(initialQuery) {
     const statusOptions = [
         { code: "proposed", display: "Proposed" },
         { code: "active", display: "Active" },
@@ -42,6 +54,7 @@ CadminApp.register("care-teams", function (params) {
                         '<tbody id="care-team-rows"><tr><td colspan="5" class="text-muted">Loading…</td></tr></tbody>' +
                     '</table>' +
                 '</div>' +
+                '<div class="list-pager" id="care-team-pager"></div>' +
             '</div>' +
         '</div>' +
         '<div class="modal fade" id="create-care-team-modal" tabindex="-1">' +
@@ -139,29 +152,40 @@ CadminApp.register("care-teams", function (params) {
         });
     }
 
-    function load(query) {
-        let path = "/CareTeam?_count=50&_sort=-_lastUpdated";
+    let listPage = 0;
+
+    function load(query, page) {
+        listPage = typeof page === "number" ? page : 0;
+        let path = "/CareTeam?_sort=-_lastUpdated";
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(path).done(function (bundle) {
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
             const entries = bundleResources(bundle);
+            CadminApi.renderPager("#care-team-pager", {
+                page: listPage,
+                returned: entries.length,
+                total: bundle.total,
+                bundle: bundle,
+                onPage: function (nextPage) { load(query, nextPage); }
+            });
             if (!entries.length) {
                 $("#care-team-rows").html('<tr><td colspan="5" class="text-muted">No care teams found. Create one or start HAPI FHIR.</td></tr>');
                 return;
             }
             const rows = entries.map(function (team) {
                 return "<tr>" +
-                    "<td>" + CadminApi.escapeHtml(team.name || "Unnamed") + "</td>" +
+                    "<td>" + CadminApi.resourceLink("#/care-teams/" + encodeURIComponent(team.id), team.name || "Unnamed") + "</td>" +
                     "<td>" + CadminApi.escapeHtml(careTeamCategory(team)) + "</td>" +
                     "<td>" + statusBadge(team.status) + "</td>" +
                     "<td><code>" + CadminApi.escapeHtml(team.id) + "</code></td>" +
-                    '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="#/resources/CareTeam/' +
+                    '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="#/care-teams/' +
                         encodeURIComponent(team.id) + '" title="Open" aria-label="Open"><i class="bi bi-eye"></i></a></td>' +
                     "</tr>";
             });
             $("#care-team-rows").html(rows.join(""));
         }).fail(function (xhr) {
+            $("#care-team-pager").empty();
             $("#care-team-rows").html('<tr><td colspan="5" class="text-danger">Unable to load care teams from /fhir.</td></tr>');
             CadminApi.showAlert("#care-team-alert", "danger",
                 "FHIR request failed (" + xhr.status + "). Is the HAPI FHIR stack running?");
@@ -219,4 +243,4 @@ CadminApp.register("care-teams", function (params) {
     $("#create-care-team-modal").on("show.bs.modal", loadCreateOptions);
 
     load(initialQuery);
-});
+}

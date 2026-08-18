@@ -30,6 +30,11 @@ final class SecuritySupport {
                         .pathMatchers("/fhir/CareTeam", "/fhir/CareTeam/**").hasRole("ADMIN")
                         .pathMatchers("/fhir/Library", "/fhir/Library/**").hasRole("ADMIN")
                         .pathMatchers("/fhir/SearchParameter", "/fhir/SearchParameter/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/Questionnaire", "/fhir/Questionnaire/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/Subscription", "/fhir/Subscription/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/SubscriptionTopic", "/fhir/SubscriptionTopic/**").hasRole("ADMIN")
+                        .pathMatchers("/fhir/Consent", "/fhir/Consent/**").hasRole("ADMIN")
+                        .pathMatchers("/api/geocode").hasRole("ADMIN")
                         .anyExchange().authenticated())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new SpaAuthenticationEntryPoint()))

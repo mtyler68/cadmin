@@ -55,6 +55,7 @@ function renderDeviceList(initialQuery) {
                         '<tbody id="device-rows"><tr><td colspan="7" class="text-muted">Loading…</td></tr></tbody>' +
                     "</table>" +
                 "</div>" +
+                '<div class="list-pager" id="device-pager"></div>' +
             "</div>" +
         "</div>" +
         '<div class="modal fade" id="create-device-modal" tabindex="-1">' +
@@ -173,13 +174,16 @@ function renderDeviceList(initialQuery) {
             && resource.status !== "explanted" && resource.status !== "entered-in-error";
     }
 
-    function load(query) {
-        let path = "/Device?_count=50&_sort=-_lastUpdated&_revinclude=DeviceAssociation:device";
+    let listPage = 0;
+
+    function load(query, page) {
+        listPage = typeof page === "number" ? page : 0;
+        let path = "/Device?_sort=-_lastUpdated&_revinclude=DeviceAssociation:device";
         if (query) {
             path += "&device-name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(path).done(function (bundle) {
-            const resources = (bundle.entry || []).map(function (e) { return e.resource; }).filter(Boolean);
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+            const resources = CadminApi.bundleResources(bundle);
             const associations = {};
             resources.forEach(function (resource) {
                 if (currentAssociation(resource)) {
@@ -192,6 +196,13 @@ function renderDeviceList(initialQuery) {
             const entries = resources.filter(function (resource) {
                 return resource.resourceType === "Device";
             });
+            CadminApi.renderPager("#device-pager", {
+                page: listPage,
+                returned: entries.length,
+                total: bundle.total,
+                bundle: bundle,
+                onPage: function (nextPage) { load(query, nextPage); }
+            });
             if (!entries.length) {
                 $("#device-rows").html('<tr><td colspan="7" class="text-muted">No devices found. Create one or start HAPI FHIR.</td></tr>');
                 return;
@@ -199,11 +210,14 @@ function renderDeviceList(initialQuery) {
             const rows = entries.map(function (device) {
                 const association = associations[device.id];
                 return "<tr>" +
-                    "<td>" + CadminApi.escapeHtml(deviceLabel(device)) + "</td>" +
+                    "<td>" + CadminApi.resourceLink("#/devices/" + encodeURIComponent(device.id), deviceLabel(device)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(conceptLabel(device.type)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(device.manufacturer || "—") + "</td>" +
                     "<td>" + statusBadge(device.status) + "</td>" +
-                    "<td>" + CadminApi.escapeHtml(refLabel(association && association.subject)) + "</td>" +
+                    "<td>" + (refId(association && association.subject)
+                        ? CadminApi.resourceLink("#/patients/" + encodeURIComponent(refId(association.subject)),
+                            refLabel(association.subject))
+                        : "—") + "</td>" +
                     "<td><code>" + CadminApi.escapeHtml(device.id) + "</code></td>" +
                     '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="#/devices/' +
                         encodeURIComponent(device.id) + '" title="Open" aria-label="Open"><i class="bi bi-eye"></i></a></td>' +
@@ -211,6 +225,7 @@ function renderDeviceList(initialQuery) {
             });
             $("#device-rows").html(rows.join(""));
         }).fail(function (xhr) {
+            $("#device-pager").empty();
             $("#device-rows").html('<tr><td colspan="7" class="text-danger">Unable to load devices from /fhir.</td></tr>');
             CadminApi.showAlert("#device-alert", "danger",
                 "FHIR request failed (" + xhr.status + "). Is the HAPI FHIR stack running?");

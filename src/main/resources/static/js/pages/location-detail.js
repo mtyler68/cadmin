@@ -60,6 +60,7 @@ window.CadminLocationDetail = (function () {
     ];
 
     let loc = null;
+    let map = null;
 
     function esc(value) {
         return CadminApi.escapeHtml(value);
@@ -109,6 +110,55 @@ window.CadminLocationDetail = (function () {
         }).filter(Boolean).join(" · ") || "—";
     }
 
+    function addressFields(address) {
+        const item = address || {};
+        return {
+            line: ((item.line || [])[0] || "").trim(),
+            city: (item.city || "").trim(),
+            state: (item.state || "").trim(),
+            postalCode: (item.postalCode || "").trim(),
+            country: (item.country || "").trim()
+        };
+    }
+
+    function formAddress() {
+        return {
+            line: ($("#ld-line").val() || "").trim(),
+            city: ($("#ld-city").val() || "").trim(),
+            state: ($("#ld-state").val() || "").trim(),
+            postalCode: ($("#ld-postal").val() || "").trim(),
+            country: ($("#ld-country").val() || "").trim()
+        };
+    }
+
+    function hasAddress(fields) {
+        return !!(fields.line || fields.city || fields.state || fields.postalCode || fields.country);
+    }
+
+    function lookupCoordinates(fields, $button) {
+        if (!hasAddress(fields)) {
+            alertMsg("danger", "Enter an address first.");
+            return $.Deferred().reject().promise();
+        }
+        const label = $button.html();
+        $button.prop("disabled", true)
+            .html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Looking up…');
+        return CadminApi.geocode(fields).always(function () {
+            $button.prop("disabled", false).html(label);
+        });
+    }
+
+    function geocodeFail(xhr) {
+        if (!xhr || !xhr.status) {
+            return;
+        }
+        if (xhr.status === 404) {
+            alertMsg("warning", "No matching location for that address.");
+            return;
+        }
+        fail("Lookup coordinates", xhr);
+    }
+
     function formatPosition(position) {
         if (!position || (position.latitude == null && position.longitude == null)) {
             return "—";
@@ -116,6 +166,49 @@ window.CadminLocationDetail = (function () {
         return [position.latitude, position.longitude, position.altitude].filter(function (v) {
             return v != null && v !== "";
         }).join(", ");
+    }
+
+    function positionCoords(position) {
+        if (!position || position.latitude == null || position.longitude == null) {
+            return null;
+        }
+        const lat = Number(position.latitude);
+        const lng = Number(position.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            return null;
+        }
+        return { lat: lat, lng: lng };
+    }
+
+    function destroyMap() {
+        if (map) {
+            map.remove();
+            map = null;
+        }
+    }
+
+    function renderMap() {
+        destroyMap();
+        const coords = positionCoords(loc && loc.position);
+        const el = document.getElementById("loc-map");
+        if (!coords || !el || typeof L === "undefined") {
+            return;
+        }
+        map = L.map(el).setView([coords.lat, coords.lng], 16);
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a>"
+        }).addTo(map);
+        const address = formatAddress(loc.address);
+        const popup = address !== "—"
+            ? "<strong>" + esc(loc.name || "Location") + "</strong><br>" + esc(address)
+            : esc(loc.name || "Location");
+        L.marker([coords.lat, coords.lng]).addTo(map).bindPopup(popup);
+        setTimeout(function () {
+            if (map) {
+                map.invalidateSize();
+            }
+        }, 0);
     }
 
     function hoursSlot(availability) {
@@ -133,7 +226,10 @@ window.CadminLocationDetail = (function () {
     }
 
     function codeStatusBadge(status) {
-        const kind = status === "active" ? "success" : status === "suspended" ? "warning" : "secondary";
+        const kind = status === "active" ? "success"
+            : status === "error" ? "danger"
+                : status === "limited" || status === "suspended" ? "warning"
+                    : "secondary";
         return '<span class="badge text-bg-' + kind + '">' + esc(status || "—") + "</span>";
     }
 
@@ -178,12 +274,15 @@ window.CadminLocationDetail = (function () {
         });
     }
 
-    function card(title, tableId, cols, addTarget, addLabel) {
+    function card(title, tableId, cols, addTarget, addLabel, extraHeader) {
         return '<div class="card shadow mb-4">' +
             '<div class="card-header py-3 d-flex justify-content-between align-items-center">' +
                 "<h6 class=\"m-0\">" + title + "</h6>" +
-                '<button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="' + addTarget + '">' +
-                    '<i class="bi bi-plus-lg me-1"></i>' + addLabel + "</button>" +
+                '<div class="d-flex gap-2">' +
+                    (extraHeader || "") +
+                    '<button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="' + addTarget + '">' +
+                        '<i class="bi bi-plus-lg me-1"></i>' + addLabel + "</button>" +
+                "</div>" +
             "</div>" +
             '<div class="card-body">' +
                 '<div class="table-responsive">' +
@@ -196,11 +295,15 @@ window.CadminLocationDetail = (function () {
         "</div>";
     }
 
-    function editCard(title, bodyId, editTarget) {
+    function editCard(title, bodyId, editTarget, extraHeader) {
         return '<div class="card shadow mb-4">' +
             '<div class="card-header py-3 d-flex justify-content-between align-items-center">' +
                 "<h6 class=\"m-0\">" + title + "</h6>" +
-                '<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="' + editTarget + '">Edit</button>' +
+                '<div class="d-flex gap-2">' +
+                    (extraHeader || "") +
+                    '<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="' +
+                        editTarget + '">Edit</button>' +
+                "</div>" +
             "</div>" +
             '<div class="card-body" id="' + bodyId + '"></div>' +
         "</div>";
@@ -245,6 +348,7 @@ window.CadminLocationDetail = (function () {
     }
 
     function render(resource) {
+        destroyMap();
         loc = resource;
         const $root = $("#app-content");
         $root.html(
@@ -258,7 +362,9 @@ window.CadminLocationDetail = (function () {
             "</div>" +
             '<div class="row">' +
                 '<div class="col-lg-6">' + editCard("Basic details", "loc-basic-details", "#ld-basic-modal") + "</div>" +
-                '<div class="col-lg-6">' + editCard("Address and position", "loc-address-details", "#ld-address-modal") + "</div>" +
+                '<div class="col-lg-6">' + editCard("Address and position", "loc-address-details", "#ld-address-modal",
+                    '<button class="btn btn-sm btn-outline-secondary" type="button" id="ld-lookup-saved">' +
+                        '<i class="bi bi-geo-alt me-1"></i>Lookup coordinates</button>') + "</div>" +
             "</div>" +
             '<div class="row">' +
                 '<div class="col-lg-6">' + editCard("Relationships", "loc-rel-details", "#ld-rel-modal") + "</div>" +
@@ -273,10 +379,12 @@ window.CadminLocationDetail = (function () {
             "</div>" +
             '<div class="row">' +
                 '<div class="col-lg-6">' + card("Endpoints", "loc-endpoint-rows",
-                    ["Name", "Type", "Address", ""], "#ld-endpoint-modal", "Add") + "</div>" +
+                    ["Name", "Type", "Address", "Status", ""], "#ld-endpoint-modal", "Add",
+                    '<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#ld-ep-attach-modal">Attach</button>') + "</div>" +
                 '<div class="col-lg-6">' + card("Practitioners", "loc-role-rows",
                     ["Practitioner", "Role", "Status", ""], "#ld-role-modal", "Add") + "</div>" +
             "</div>" +
+            CadminResourceGraph.card() +
             modal("ld-basic-modal", "Edit basic details",
                 field("Name", '<input class="form-control" id="ld-name" required>') +
                 field("Status", '<select class="form-select" id="ld-status">' + optionsHtml(statusOptions) + "</select>") +
@@ -292,6 +400,11 @@ window.CadminLocationDetail = (function () {
                 '<div class="col-md-6 mb-3"><label class="form-label">State</label><input class="form-control" id="ld-state"></div></div>' +
                 '<div class="row"><div class="col-md-6 mb-3"><label class="form-label">Postal code</label><input class="form-control" id="ld-postal"></div>' +
                 '<div class="col-md-6 mb-3"><label class="form-label">Country</label><input class="form-control" id="ld-country"></div></div>' +
+                '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                    '<span class="form-label mb-0">Position</span>' +
+                    '<button class="btn btn-sm btn-outline-primary" type="button" id="ld-lookup-form">' +
+                        '<i class="bi bi-geo-alt me-1"></i>Lookup from address</button>' +
+                "</div>" +
                 '<div class="row"><div class="col-md-4 mb-0"><label class="form-label">Latitude</label><input class="form-control" id="ld-lat"></div>' +
                 '<div class="col-md-4 mb-0"><label class="form-label">Longitude</label><input class="form-control" id="ld-lng"></div>' +
                 '<div class="col-md-4 mb-0"><label class="form-label">Altitude</label><input class="form-control" id="ld-alt"></div></div>',
@@ -325,14 +438,20 @@ window.CadminLocationDetail = (function () {
             modal("ld-endpoint-modal", "Add endpoint",
                 field("Name", '<input class="form-control" id="ld-ep-name" required>') +
                 field("Connection type", '<select class="form-select" id="ld-ep-type">' + optionsHtml(connectionTypes) + "</select>") +
-                field("Address", '<input class="form-control" id="ld-ep-address" required placeholder="https://example.org/fhir">'),
+                field("Address", '<input class="form-control" id="ld-ep-address" required placeholder="https://example.org/fhir">') +
+                field("Status", '<select class="form-select" id="ld-ep-status">' +
+                    '<option value="active">Active</option><option value="limited">Limited</option>' +
+                    '<option value="suspended">Suspended</option><option value="off">Off</option></select>'),
                 "ld-endpoint-form") +
+            modal("ld-ep-attach-modal", "Attach endpoint",
+                field("Endpoint", '<select class="form-select" id="ld-ep-attach" required><option value="">Select…</option></select>'),
+                "ld-ep-attach-form") +
             modal("ld-role-modal", "Add practitioner role",
                 field("Practitioner", '<select class="form-select" id="ld-pr-practitioner"><option value="">Select…</option></select>') +
                 field("Role", '<select class="form-select" id="ld-pr-role">' + optionsHtml(practitionerRoles) + "</select>"),
                 "ld-role-form")
         );
-
+        CadminResourceGraph.mount(loc);
         renderBasics();
         renderAddress();
         renderRelationships();
@@ -351,6 +470,7 @@ window.CadminLocationDetail = (function () {
                 return item.name || item.id;
             }, loc.id);
         });
+        $("#ld-ep-attach-modal").on("show.bs.modal", fillEndpointAttach);
         $("#ld-role-modal").on("show.bs.modal", function () {
             fillSelect("#ld-pr-practitioner", "/Practitioner?_count=200&_sort=name", personName);
         });
@@ -375,12 +495,18 @@ window.CadminLocationDetail = (function () {
     }
 
     function renderAddress() {
+        const coords = positionCoords(loc.position);
         $("#loc-address-details").html(
             '<dl class="row mb-0">' +
                 '<dt class="col-sm-4">Address</dt><dd class="col-sm-8">' + esc(formatAddress(loc.address)) + "</dd>" +
                 '<dt class="col-sm-4">Position</dt><dd class="col-sm-8">' + esc(formatPosition(loc.position)) + "</dd>" +
-            "</dl>"
+            "</dl>" +
+            (coords
+                ? '<div id="loc-map" class="location-map mt-3" role="img" aria-label="Map of this location"></div>'
+                : "")
         );
+        $("#ld-lookup-saved").prop("disabled", !hasAddress(addressFields(loc.address)));
+        renderMap();
     }
 
     function renderRelationships() {
@@ -459,28 +585,42 @@ window.CadminLocationDetail = (function () {
         });
     }
 
+    function fillEndpointAttach() {
+        const linked = (loc.endpoint || []).map(refId).filter(Boolean);
+        CadminApi.fhir("/Endpoint?_count=200&_sort=name").done(function (bundle) {
+            const options = ['<option value="">Select…</option>'].concat(bundleResources(bundle)
+                .filter(function (ep) { return linked.indexOf(ep.id) === -1; })
+                .map(function (ep) {
+                    const label = (ep.name || ep.id) + (ep.address ? " · " + ep.address : "");
+                    return '<option value="' + esc(ep.id) + '">' + esc(label) + "</option>";
+                }));
+            $("#ld-ep-attach").html(options.join(""));
+        });
+    }
+
     function loadEndpoints() {
-        const fromRefs = (loc.endpoint || []).map(function (ref) { return refId(ref); }).filter(Boolean);
-        if (!fromRefs.length) {
-            $("#loc-endpoint-rows").html(emptyRow(4, "No endpoints."));
+        const ids = (loc.endpoint || []).map(refId).filter(Boolean);
+        if (!ids.length) {
+            $("#loc-endpoint-rows").html(emptyRow(5, "No endpoints."));
             return;
         }
-        CadminApi.fhir("/Endpoint?_count=50&_sort=name").done(function (bundle) {
-            const listed = bundleResources(bundle).filter(function (ep) {
-                return fromRefs.indexOf(ep.id) >= 0;
-            });
+        CadminApi.fhir("/Endpoint?_id=" + ids.map(encodeURIComponent).join(",") + "&_count=50").done(function (bundle) {
+            const listed = bundleResources(bundle);
             if (!listed.length) {
-                $("#loc-endpoint-rows").html(emptyRow(4, "No endpoints."));
+                $("#loc-endpoint-rows").html(emptyRow(5, "No endpoints."));
                 return;
             }
             $("#loc-endpoint-rows").html(listed.map(function (ep) {
-                return "<tr><td>" + esc(ep.name || ep.id) + "</td><td>" + esc(conceptLabel(ep.connectionType)) +
-                    "</td><td><code>" + esc(ep.address || "—") + "</code></td>" +
-                    '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-delete="/Endpoint/' +
-                    encodeURIComponent(ep.id) + '" data-reload="endpoints" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
+                return "<tr>" +
+                    '<td><a href="#/endpoints/' + encodeURIComponent(ep.id) + '">' + esc(ep.name || ep.id) + "</a></td>" +
+                    "<td>" + esc(conceptLabel(ep.connectionType)) + "</td>" +
+                    "<td><code>" + esc(ep.address || "—") + "</code></td>" +
+                    "<td>" + codeStatusBadge(ep.status) + "</td>" +
+                    '<td class="text-end"><button class="btn btn-sm btn-outline-secondary" type="button" data-unlink-endpoint="' +
+                    esc(ep.id) + '" title="Unlink" aria-label="Unlink"><i class="bi bi-x-lg"></i></button></td></tr>';
             }).join(""));
         }).fail(function (xhr) {
-            $("#loc-endpoint-rows").html(emptyRow(4, "Unable to load endpoints."));
+            $("#loc-endpoint-rows").html(emptyRow(5, "Unable to load endpoints."));
             fail("Load endpoints", xhr);
         });
     }
@@ -578,22 +718,25 @@ window.CadminLocationDetail = (function () {
 
         $root.on("click.locdetail", "[data-delete]", function () {
             const path = $(this).attr("data-delete");
-            const which = $(this).attr("data-reload");
             CadminApi.fhir(path, "DELETE").done(function () {
-                if (which === "endpoints") {
-                    loc.endpoint = (loc.endpoint || []).filter(function (ref) {
-                        return path.indexOf(refId(ref)) === -1;
-                    });
-                    saveLoc(function () {
-                        alertMsg("success", "Removed.");
-                        loadEndpoints();
-                    });
-                } else {
-                    alertMsg("success", "Removed.");
-                    loadRoles();
-                }
+                alertMsg("success", "Removed.");
+                loadRoles();
             }).fail(function (xhr) {
                 fail("Remove", xhr);
+            });
+        });
+
+        $root.on("click.locdetail", "[data-unlink-endpoint]", function () {
+            const id = $(this).attr("data-unlink-endpoint");
+            loc.endpoint = (loc.endpoint || []).filter(function (ref) {
+                return refId(ref) !== id;
+            });
+            if (!loc.endpoint.length) {
+                delete loc.endpoint;
+            }
+            saveLoc(function () {
+                alertMsg("success", "Endpoint unlinked.");
+                loadEndpoints();
             });
         });
 
@@ -621,6 +764,31 @@ window.CadminLocationDetail = (function () {
             saveLoc(function () {
                 alertMsg("success", "Contact removed.");
             });
+        });
+
+        $root.on("click.locdetail", "#ld-lookup-saved", function () {
+            const $btn = $(this);
+            lookupCoordinates(addressFields(loc.address), $btn).done(function (result) {
+                loc.position = loc.position || {};
+                loc.position.latitude = result.latitude;
+                loc.position.longitude = result.longitude;
+                saveLoc(function () {
+                    alertMsg("success", result.displayName
+                        ? "Coordinates set · " + result.displayName
+                        : "Coordinates set.");
+                });
+            }).fail(geocodeFail);
+        });
+
+        $root.on("click.locdetail", "#ld-lookup-form", function () {
+            const $btn = $(this);
+            lookupCoordinates(formAddress(), $btn).done(function (result) {
+                $("#ld-lat").val(result.latitude);
+                $("#ld-lng").val(result.longitude);
+                alertMsg("success", result.displayName
+                    ? "Coordinates found · " + result.displayName
+                    : "Coordinates found.");
+            }).fail(geocodeFail);
         });
 
         $root.on("click.locdetail", "[data-remove-hours]", function () {
@@ -807,12 +975,31 @@ window.CadminLocationDetail = (function () {
             });
         });
 
+        $("#ld-ep-attach-form").on("submit", function (event) {
+            event.preventDefault();
+            const id = $("#ld-ep-attach").val();
+            if (!id) {
+                return;
+            }
+            const label = ($("#ld-ep-attach option:selected").text() || "").split(" · ")[0];
+            loc.endpoint = loc.endpoint || [];
+            loc.endpoint.push({
+                reference: "Endpoint/" + id,
+                display: label
+            });
+            saveLoc(function () {
+                hideModal("ld-ep-attach-modal");
+                alertMsg("success", "Endpoint attached.");
+                loadEndpoints();
+            });
+        });
+
         $("#ld-endpoint-form").on("submit", function (event) {
             event.preventDefault();
             const conn = findOption(connectionTypes, $("#ld-ep-type").val());
             const resource = {
                 resourceType: "Endpoint",
-                status: "active",
+                status: $("#ld-ep-status").val() || "active",
                 name: $("#ld-ep-name").val(),
                 address: $("#ld-ep-address").val(),
                 connectionType: [{
@@ -886,6 +1073,8 @@ window.CadminLocationDetail = (function () {
             });
         });
     }
+
+    $(window).on("hashchange.locmap", destroyMap);
 
     return { render: render };
 }());

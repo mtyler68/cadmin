@@ -45,6 +45,7 @@ function renderPractitionerList(initialQuery) {
                         '<tbody id="practitioner-rows"><tr><td colspan="5" class="text-muted">Loading…</td></tr></tbody>' +
                     "</table>" +
                 "</div>" +
+                '<div class="list-pager" id="practitioner-pager"></div>' +
             "</div>" +
         "</div>" +
         '<div class="modal fade" id="create-practitioner-modal" tabindex="-1">' +
@@ -196,13 +197,23 @@ function renderPractitionerList(initialQuery) {
         });
     }
 
-    function load(query) {
-        let path = "/Practitioner?_count=50&_sort=-_lastUpdated";
+    let listPage = 0;
+
+    function load(query, page) {
+        listPage = typeof page === "number" ? page : 0;
+        let path = "/Practitioner?_sort=-_lastUpdated";
         if (query) {
             path += "&name=" + encodeURIComponent(query);
         }
-        CadminApi.fhir(path).done(function (bundle) {
-            const entries = (bundle.entry || []).map(function (e) { return e.resource; }).filter(Boolean);
+        CadminApi.fhir(CadminApi.pagedPath(path, listPage)).done(function (bundle) {
+            const entries = CadminApi.bundleResources(bundle, "Practitioner");
+            CadminApi.renderPager("#practitioner-pager", {
+                page: listPage,
+                returned: entries.length,
+                total: bundle.total,
+                bundle: bundle,
+                onPage: function (nextPage) { load(query, nextPage); }
+            });
             if (!entries.length) {
                 $("#practitioner-rows").html('<tr><td colspan="5" class="text-muted">No practitioners found. Create one or start HAPI FHIR.</td></tr>');
                 return;
@@ -210,7 +221,7 @@ function renderPractitionerList(initialQuery) {
             const rows = entries.map(function (practitioner) {
                 const active = practitioner.active !== false;
                 return "<tr>" +
-                    "<td>" + CadminApi.escapeHtml(personName(practitioner)) + "</td>" +
+                    "<td>" + CadminApi.resourceLink("#/practitioners/" + encodeURIComponent(practitioner.id), personName(practitioner)) + "</td>" +
                     "<td>" + CadminApi.escapeHtml(practitioner.gender || "—") + "</td>" +
                     "<td>" + (active
                         ? '<span class="badge text-bg-success">Active</span>'
@@ -222,6 +233,7 @@ function renderPractitionerList(initialQuery) {
             });
             $("#practitioner-rows").html(rows.join(""));
         }).fail(function (xhr) {
+            $("#practitioner-pager").empty();
             $("#practitioner-rows").html('<tr><td colspan="5" class="text-danger">Unable to load practitioners from /fhir.</td></tr>');
             CadminApi.showAlert("#practitioner-alert", "danger",
                 "FHIR request failed (" + xhr.status + "). Is the HAPI FHIR stack running?");
