@@ -5,6 +5,11 @@ window.CadminPatientDetail = (function () {
         { code: "male", display: "Male" },
         { code: "other", display: "Other" }
     ];
+    const identifierTypes = [
+        { code: "SS", display: "Social Security Number", system: "http://hl7.org/fhir/sid/us-ssn" },
+        { code: "MR", display: "Medical record number", system: "" },
+        { code: "", display: "Other", system: "" }
+    ];
     const languageOptions = [
         { code: "en", display: "English" },
         { code: "es", display: "Spanish" },
@@ -502,7 +507,7 @@ window.CadminPatientDetail = (function () {
                                 tabPane("pd-tab-details",
                                     editCard("Basic details", "pd-basic-details", "#pd-basic-modal") +
                                     card("Identifiers", "pd-id-rows",
-                                        ["System", "Value", ""], "#pd-id-modal", "Add") +
+                                        ["Type", "System", "Value", ""], "#pd-id-modal", "Add") +
                                     '<div class="row">' +
                                         '<div class="col-lg-6">' + card("Contacts", "pd-telecom-rows",
                                             ["System", "Value", ""], "#pd-telecom-modal", "Add") + "</div>" +
@@ -551,8 +556,9 @@ window.CadminPatientDetail = (function () {
                     '<label class="form-check-label" for="pd-active">Active</label></div>',
                 "pd-basic-form") +
             modal("pd-id-modal", "Add identifier",
-                field("System", '<input class="form-control" id="pd-id-system">') +
-                field("Value", '<input class="form-control" id="pd-id-value" required>'),
+                field("Type", '<select class="form-select" id="pd-id-type">' + optionsHtml(identifierTypes) + "</select>") +
+                field("System", '<input class="form-control" id="pd-id-system" placeholder="http://hl7.org/fhir/sid/us-ssn">') +
+                field("Value", '<input class="form-control" id="pd-id-value" required placeholder="000-00-0000">'),
                 "pd-id-form") +
             modal("pd-telecom-modal", "Add contact",
                 field("System", '<select class="form-select" id="pd-tel-system">' +
@@ -676,11 +682,12 @@ window.CadminPatientDetail = (function () {
     function renderIdentifiers() {
         const items = patient.identifier || [];
         if (!items.length) {
-            $("#pd-id-rows").html(emptyRow(3, "No identifiers."));
+            $("#pd-id-rows").html(emptyRow(4, "No identifiers."));
             return;
         }
         $("#pd-id-rows").html(items.map(function (item, index) {
-            return "<tr><td>" + esc(item.system || "—") + "</td><td>" + esc(item.value || "—") + "</td>" +
+            return "<tr><td>" + esc(item.type ? conceptLabel(item.type) : "—") +
+                "</td><td>" + esc(item.system || "—") + "</td><td>" + esc(item.value || "—") + "</td>" +
                 '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove="identifier" data-index="' +
                 index + '" title="Remove"><i class="bi bi-trash"></i></button></td></tr>';
         }).join(""));
@@ -1069,6 +1076,13 @@ window.CadminPatientDetail = (function () {
             $("#pd-pr-name-wrap").toggleClass("d-none", !!$(this).val());
         });
 
+        $("#pd-id-modal").on("show.bs.modal", function () {
+            const selected = identifierTypes.find(function (item) { return item.code === $("#pd-id-type").val(); });
+            if (selected && selected.system && !$("#pd-id-system").val()) {
+                $("#pd-id-system").val(selected.system);
+            }
+        });
+
         $("#pd-basic-modal").on("show.bs.modal", function () {
             const name = (patient.name && patient.name[0]) || {};
             $("#pd-prefix").val((name.prefix || []).join(" "));
@@ -1199,15 +1213,39 @@ window.CadminPatientDetail = (function () {
             });
         });
 
+        $("#pd-id-type").on("change", function () {
+            const selected = identifierTypes.find(function (item) { return item.code === $("#pd-id-type").val(); });
+            if (selected && selected.system) {
+                $("#pd-id-system").val(selected.system);
+            }
+        });
+
         $("#pd-id-form").on("submit", function (event) {
             event.preventDefault();
-            const identifier = { value: $("#pd-id-value").val() };
-            const system = $("#pd-id-system").val();
-            if (system) { identifier.system = system; }
+            const identifier = { value: $("#pd-id-value").val().trim() };
+            const type = identifierTypes.find(function (item) { return item.code === $("#pd-id-type").val(); });
+            const system = $("#pd-id-system").val().trim() || (type && type.system) || "";
+            if (type && type.code) {
+                identifier.type = {
+                    coding: [{
+                        system: "http://terminology.hl7.org/CodeSystem/v2-0203",
+                        code: type.code,
+                        display: type.display
+                    }],
+                    text: type.display
+                };
+                if (type.code === "SS") {
+                    identifier.use = "official";
+                }
+            }
+            if (system) {
+                identifier.system = system;
+            }
             patient.identifier = patient.identifier || [];
             patient.identifier.push(identifier);
             savePatient(function () {
                 hideModal("pd-id-modal");
+                $("#pd-id-value").val("");
                 alertMsg("success", "Identifier added.");
             });
         });

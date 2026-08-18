@@ -75,8 +75,10 @@ function renderPatientList(initialQuery) {
                                 '<option value="male">Male</option>' +
                                 '<option value="other">Other</option>' +
                             "</select></div>" +
-                        '<div class="mb-0"><label class="form-label">Birth date</label>' +
+                        '<div class="mb-3"><label class="form-label">Birth date</label>' +
                             '<input type="date" class="form-control" id="p-birth"></div>' +
+                        '<div class="mb-0"><label class="form-label">SSN</label>' +
+                            '<input class="form-control" id="p-ssn" placeholder="000-00-0000"></div>' +
                     "</div>" +
                     '<div class="modal-footer">' +
                         '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>' +
@@ -257,6 +259,22 @@ function renderPatientList(initialQuery) {
         const birth = $("#p-birth").val();
         if (birth) {
             resource.birthDate = birth;
+        }
+        const ssn = $("#p-ssn").val().trim();
+        if (ssn) {
+            resource.identifier = [{
+                use: "official",
+                type: {
+                    coding: [{
+                        system: "http://terminology.hl7.org/CodeSystem/v2-0203",
+                        code: "SS",
+                        display: "Social Security Number"
+                    }],
+                    text: "Social Security Number"
+                },
+                system: "http://hl7.org/fhir/sid/us-ssn",
+                value: ssn
+            }];
         }
         CadminApi.fhir("/Patient", "POST", resource).done(function (created, _status, xhr) {
             const id = createdId(created, xhr, "Patient");

@@ -242,7 +242,12 @@ window.CadminEndpointDetail = (function () {
                     '<option value=""></option>' + optionsHtml(mimeTypes) + "</select>"),
                 "ed-payload-form") +
             modal("ed-header-modal", "Add header",
-                field("Header", '<input class="form-control font-monospace" id="ed-hd-value" required placeholder="Authorization: Bearer …">'),
+                field("Header name",
+                    '<input type="text" class="form-control font-monospace" id="ed-hd-name" required ' +
+                    'autocomplete="off" spellcheck="false" placeholder="X-Request-ID">') +
+                field("Value",
+                    '<input type="text" class="form-control font-monospace" id="ed-hd-value" ' +
+                    'autocomplete="off" spellcheck="false" placeholder="Bearer …">'),
                 "ed-header-form") +
             modal("ed-contact-modal", "Add contact",
                 field("System", '<select class="form-select" id="ed-ct-system">' + optionsHtml(contactSystems) + "</select>") +
@@ -537,14 +542,16 @@ window.CadminEndpointDetail = (function () {
 
         $("#ed-header-form").on("submit", function (event) {
             event.preventDefault();
+            const name = $("#ed-hd-name").val().trim();
             const value = $("#ed-hd-value").val().trim();
-            if (!value) {
+            if (!name) {
                 return;
             }
             endpoint.header = endpoint.header || [];
-            endpoint.header.push(value);
+            endpoint.header.push(value ? name + ": " + value : name);
             saveEndpoint(function () {
                 hideModal("ed-header-modal");
+                $("#ed-hd-name").val("");
                 $("#ed-hd-value").val("");
                 alertMsg("success", "Header added.");
             });

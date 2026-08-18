@@ -457,9 +457,9 @@ window.CadminQuestionnaireDetail = (function () {
             '<div class="q-tree-row' + selected + '" data-select="' + esc(path) + '" style="padding-left:' +
                 (0.75 + depth * 1.1) + 'rem">' +
                 '<div class="q-tree-label">' +
-                    '<span class="badge text-bg-light me-2">' + esc(typeLabel(item.type)) + "</span>" +
+                    '<span class="badge q-tree-type me-2">' + esc(typeLabel(item.type)) + "</span>" +
                     "<span>" + esc(label) + "</span>" +
-                    '<code class="ms-2 small text-muted">' + esc(item.linkId || "") + "</code>" +
+                    '<code class="ms-2 small">' + esc(item.linkId || "") + "</code>" +
                 "</div>" +
                 '<div class="q-tree-actions btn-group btn-group-sm">' +
                     (item.type === "group"

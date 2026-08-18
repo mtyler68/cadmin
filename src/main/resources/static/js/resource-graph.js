@@ -44,7 +44,6 @@ window.CadminResourceGraph = (function () {
     let edgeSet = null;
     let lastGraph = null;
     let focusKey = "";
-    let cssFullscreen = false;
     let graphDepth = DEPTH_DEFAULT;
     let mountedResource = null;
     let mountedByKey = null;
@@ -114,23 +113,23 @@ window.CadminResourceGraph = (function () {
 
     function card() {
         return '<div class="card shadow mb-4" id="resource-graph-card">' +
-            '<div class="card-header py-3 d-flex justify-content-between align-items-center">' +
-                '<h6 class="m-0"><i class="bi bi-diagram-3 me-2"></i>Reference graph</h6>' +
-                '<div class="d-flex align-items-center gap-2">' +
-                    '<label class="small text-muted mb-0 d-flex align-items-center gap-1" for="resource-graph-depth">' +
+            '<div class="card-header">' +
+                '<h3 class="card-title"><i class="bi bi-diagram-3 me-2"></i>Reference graph</h3>' +
+                '<div class="card-tools">' +
+                    '<label class="small text-muted mb-0 d-inline-flex align-items-center gap-1" for="resource-graph-depth">' +
                         "Depth" +
                         '<input id="resource-graph-depth" class="form-control form-control-sm resource-graph-depth" ' +
                             'type="number" min="' + DEPTH_MIN + '" max="' + DEPTH_MAX + '" step="1" value="' +
                             graphDepth + '" title="Graph depth" aria-label="Graph depth">' +
                     "</label>" +
-                    '<span class="small text-muted d-none d-lg-inline">Scroll to zoom · drag to pan</span>' +
-                    '<button class="btn btn-sm btn-outline-secondary" type="button" id="resource-graph-declutter" title="Arrange nodes so connectors do not overlap">' +
+                    '<span class="small text-muted d-none d-lg-inline ms-2">Scroll to zoom · drag to pan</span>' +
+                    '<button class="btn btn-sm btn-outline-secondary ms-2" type="button" id="resource-graph-declutter" title="Arrange nodes so connectors do not overlap">' +
                         '<i class="bi bi-distribute-vertical" aria-hidden="true"></i>' +
                         '<span class="ms-1">Declutter</span>' +
                     "</button>" +
-                    '<button class="btn btn-sm btn-outline-secondary" type="button" id="resource-graph-fullscreen" title="Fullscreen">' +
-                        '<i class="bi bi-fullscreen" aria-hidden="true"></i>' +
-                        '<span class="ms-1">Fullscreen</span>' +
+                    '<button type="button" class="btn btn-tool" data-lte-toggle="card-maximize" title="Maximize" aria-label="Maximize">' +
+                        '<i data-lte-icon="maximize" class="bi bi-fullscreen"></i>' +
+                        '<i data-lte-icon="minimize" class="bi bi-fullscreen-exit"></i>' +
                     "</button>" +
                 "</div>" +
             "</div>" +
@@ -140,27 +139,34 @@ window.CadminResourceGraph = (function () {
         "</div>";
     }
 
-    function nativeFullscreenElement() {
-        return document.fullscreenElement || document.webkitFullscreenElement || null;
+    function graphCard() {
+        return document.getElementById("resource-graph-card");
     }
 
-    function isFullscreen() {
-        const cardEl = document.getElementById("resource-graph-card");
-        return cssFullscreen || !!(cardEl && nativeFullscreenElement() === cardEl);
+    function isMaximized() {
+        const cardEl = graphCard();
+        return !!(cardEl && cardEl.classList.contains("maximized-card"));
     }
 
-    function syncFullscreenUi() {
-        const button = document.getElementById("resource-graph-fullscreen");
-        const active = isFullscreen();
-        document.body.classList.toggle("resource-graph-fullscreen-open", active);
-        if (!button) {
-            return;
+    function restoreMaximize() {
+        const cardEl = graphCard();
+        if (cardEl && cardEl.classList.contains("maximized-card")) {
+            const button = cardEl.querySelector("[data-lte-toggle=\"card-maximize\"]");
+            if (button) {
+                button.click();
+                return;
+            }
+            cardEl.classList.remove("maximized-card");
+            cardEl.style.cssText = "";
         }
-        button.title = active ? "Exit fullscreen" : "Fullscreen";
-        button.setAttribute("aria-pressed", active ? "true" : "false");
-        button.innerHTML = active
-            ? '<i class="bi bi-fullscreen-exit" aria-hidden="true"></i><span class="ms-1">Exit</span>'
-            : '<i class="bi bi-fullscreen" aria-hidden="true"></i><span class="ms-1">Fullscreen</span>';
+        document.documentElement.classList.remove("maximized-card");
+    }
+
+    function afterMaximizeChange() {
+        window.requestAnimationFrame(function () {
+            resizeNetwork();
+            window.setTimeout(resizeNetwork, 180);
+        });
     }
 
     function resizeNetwork() {
@@ -174,75 +180,6 @@ window.CadminResourceGraph = (function () {
         network.setSize(el.clientWidth + "px", el.clientHeight + "px");
         network.redraw();
         network.fit({ animation: false });
-    }
-
-    function afterFullscreenChange() {
-        syncFullscreenUi();
-        window.requestAnimationFrame(function () {
-            resizeNetwork();
-        });
-    }
-
-    function enterCssFullscreen() {
-        const cardEl = document.getElementById("resource-graph-card");
-        if (!cardEl) {
-            return;
-        }
-        cssFullscreen = true;
-        cardEl.classList.add("resource-graph-is-fullscreen");
-        afterFullscreenChange();
-    }
-
-    function exitCssFullscreen() {
-        const cardEl = document.getElementById("resource-graph-card");
-        cssFullscreen = false;
-        if (cardEl) {
-            cardEl.classList.remove("resource-graph-is-fullscreen");
-        }
-        afterFullscreenChange();
-    }
-
-    function exitNativeFullscreen() {
-        const active = nativeFullscreenElement();
-        if (!active) {
-            return;
-        }
-        if (document.exitFullscreen) {
-            document.exitFullscreen().catch(function () {});
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-        }
-    }
-
-    function exitAllFullscreen() {
-        if (cssFullscreen) {
-            exitCssFullscreen();
-        }
-        exitNativeFullscreen();
-    }
-
-    function enterFullscreen() {
-        const cardEl = document.getElementById("resource-graph-card");
-        if (!cardEl) {
-            return;
-        }
-        const request = cardEl.requestFullscreen || cardEl.webkitRequestFullscreen;
-        if (!request) {
-            enterCssFullscreen();
-            return;
-        }
-        const result = request.call(cardEl);
-        if (result && typeof result.then === "function") {
-            result.then(afterFullscreenChange).catch(enterCssFullscreen);
-        }
-    }
-
-    function toggleFullscreen() {
-        if (isFullscreen()) {
-            exitAllFullscreen();
-            return;
-        }
-        enterFullscreen();
     }
 
     function detailHref(type, id) {
@@ -756,7 +693,7 @@ window.CadminResourceGraph = (function () {
         expandToken += 1;
         mountedResource = null;
         mountedByKey = null;
-        exitAllFullscreen();
+        restoreMaximize();
         destroyNetwork();
     }
 
@@ -794,7 +731,7 @@ window.CadminResourceGraph = (function () {
                 dragView: true,
                 zoomView: true,
                 navigationButtons: true,
-                keyboard: true,
+                keyboard: { enabled: true, bindToWindow: false },
                 hover: true,
                 tooltipDelay: 200,
                 selectable: true
@@ -889,7 +826,7 @@ window.CadminResourceGraph = (function () {
             el.style.cursor = "grab";
         });
         el.style.cursor = "grab";
-        if (isFullscreen()) {
+        if (isMaximized()) {
             window.requestAnimationFrame(resizeNetwork);
         }
     }
@@ -1046,18 +983,19 @@ window.CadminResourceGraph = (function () {
         event.preventDefault();
         declutter();
     });
-    $(document).on("click.resourcegraphfs", "#resource-graph-fullscreen", function (event) {
-        event.preventDefault();
-        toggleFullscreen();
+    $(document).on("maximized.lte.card-widget.resourcegraphfs minimized.lte.card-widget.resourcegraphfs", function (event) {
+        if (!$(event.target).closest("#resource-graph-card").length) {
+            return;
+        }
+        afterMaximizeChange();
     });
-    $(document).on("fullscreenchange.resourcegraphfs webkitfullscreenchange.resourcegraphfs", afterFullscreenChange);
     $(document).on("keydown.resourcegraphfs", function (event) {
-        if (event.key === "Escape" && cssFullscreen) {
-            exitCssFullscreen();
+        if (event.key === "Escape" && isMaximized()) {
+            restoreMaximize();
         }
     });
     $(window).on("resize.resourcegraphfs", function () {
-        if (isFullscreen()) {
+        if (isMaximized()) {
             resizeNetwork();
         }
     });

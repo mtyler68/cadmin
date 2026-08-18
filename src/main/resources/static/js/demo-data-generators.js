@@ -188,6 +188,34 @@ window.CadminDemoData = (function () {
         return area + "-" + exchange + "-" + line;
     }
 
+    function ssn(random, used) {
+        let value;
+        let attempt = 0;
+        do {
+            // Area 900–999 is not assigned — safe for demo data.
+            const area = 900 + Math.floor(random() * 100);
+            const group = 10 + Math.floor(random() * 90);
+            const serial = 1000 + Math.floor(random() * 9000);
+            value = area + "-" + group + "-" + serial;
+            attempt += 1;
+        } while (used[value] && attempt < 20);
+        used[value] = true;
+        return value;
+    }
+
+    function ssnIdentifier(value) {
+        return {
+            use: "official",
+            type: coding(
+                "http://terminology.hl7.org/CodeSystem/v2-0203",
+                "SS",
+                "Social Security Number"
+            ),
+            system: "http://hl7.org/fhir/sid/us-ssn",
+            value: value
+        };
+    }
+
     function slug(text) {
         return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "");
     }
@@ -540,6 +568,7 @@ window.CadminDemoData = (function () {
                 (locKeys.length ? " and location" : ""));
         }
 
+        const usedSsns = {};
         for (let i = 0; i < counts.patient; i += 1) {
             const person = buildPerson(random, usedNames);
             const place = placeFor(orgKeys.length ? i % orgKeys.length : i);
@@ -559,6 +588,7 @@ window.CadminDemoData = (function () {
                     name: [person.name],
                     gender: person.gender,
                     birthDate: birthDate(random, 1942, 2018),
+                    identifier: [ssnIdentifier(ssn(random, usedSsns))],
                     telecom: [
                         { system: "phone", value: phone(random, place.area), use: "home" },
                         { system: "email", value: personEmail(person.name.given[0], person.name.family) }
