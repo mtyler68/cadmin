@@ -436,8 +436,7 @@ window.CadminPatientDetail = (function () {
                     "</nav>" +
                     '<h1 class="h3 mb-0 page-title">Patient</h1>' +
                 "</div>" +
-                '<a class="btn btn-outline-primary" href="#/resources/Patient/' + encodeURIComponent(patient.id) + '">' +
-                    '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                CadminResourceSource.button() +
             "</div>" +
             '<div class="row">' +
                 '<div class="col-md-3">' +
@@ -643,6 +642,7 @@ window.CadminPatientDetail = (function () {
                     "pd-consent-form")
                 : "")
         );
+        CadminResourceSource.mount(function () { return patient; });
         CadminResourceGraph.mount(patient);
         renderBasics();
         renderIdentifiers();

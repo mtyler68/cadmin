@@ -357,8 +357,7 @@ window.CadminLocationDetail = (function () {
                     '<a class="small text-decoration-none" href="#/locations"><i class="bi bi-arrow-left me-1"></i>Locations</a>' +
                     '<h1 class="h3 mb-0 page-title">' + esc(loc.name || "Location") + "</h1>" +
                 "</div>" +
-                '<a class="btn btn-outline-primary" href="#/resources/Location/' + encodeURIComponent(loc.id) + '">' +
-                    '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                CadminResourceSource.button() +
             "</div>" +
             '<div class="row">' +
                 '<div class="col-lg-6">' + editCard("Basic details", "loc-basic-details", "#ld-basic-modal") + "</div>" +
@@ -451,6 +450,7 @@ window.CadminLocationDetail = (function () {
                 field("Role", '<select class="form-select" id="ld-pr-role">' + optionsHtml(practitionerRoles) + "</select>"),
                 "ld-role-form")
         );
+        CadminResourceSource.mount(function () { return loc; });
         CadminResourceGraph.mount(loc);
         renderBasics();
         renderAddress();

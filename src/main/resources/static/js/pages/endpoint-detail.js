@@ -198,9 +198,7 @@ window.CadminEndpointDetail = (function () {
                 '<div class="d-flex flex-wrap gap-2">' +
                     '<button class="btn btn-outline-danger" type="button" id="ed-delete">' +
                         '<i class="bi bi-trash me-1"></i>Delete</button>' +
-                    '<a class="btn btn-outline-primary" href="#/resources/Endpoint/' +
-                        encodeURIComponent(endpoint.id) + '">' +
-                        '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                    CadminResourceSource.button() +
                 "</div>" +
             "</div>" +
             '<div class="card shadow mb-4">' +
@@ -254,6 +252,7 @@ window.CadminEndpointDetail = (function () {
                 field("Value", '<input class="form-control" id="ed-ct-value" required>'),
                 "ed-contact-form")
         );
+        CadminResourceSource.mount(function () { return endpoint; });
         CadminResourceGraph.mount(endpoint);
         renderBasics();
         renderPayload();

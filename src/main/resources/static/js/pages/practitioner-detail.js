@@ -198,6 +198,100 @@ window.CadminPractitionerDetail = (function () {
         "</div>";
     }
 
+    function tabButton(id, label, active) {
+        return '<li class="nav-item" role="presentation">' +
+            '<button class="nav-link' + (active ? " active" : "") + '" id="' + id + '-btn" data-bs-toggle="tab" ' +
+            'data-bs-target="#' + id + '" type="button" role="tab" aria-controls="' + id +
+            '" aria-selected="' + (active ? "true" : "false") + '">' + label + "</button></li>";
+    }
+
+    function tabPane(id, body, active) {
+        return '<div class="tab-pane fade' + (active ? " show active" : "") + '" id="' + id +
+            '" role="tabpanel" aria-labelledby="' + id + '-btn">' + body + "</div>";
+    }
+
+    function initials(resource) {
+        const name = (resource && resource.name && resource.name[0]) || {};
+        const given = ((name.given && name.given[0]) || "").charAt(0);
+        const family = (name.family || "").charAt(0);
+        const letters = (given + family) || "?";
+        return letters.toUpperCase();
+    }
+
+    function ageLabel(birthDate) {
+        if (!birthDate) {
+            return "";
+        }
+        const born = new Date(birthDate + "T00:00:00");
+        if (isNaN(born.getTime())) {
+            return birthDate;
+        }
+        const now = new Date();
+        let years = now.getFullYear() - born.getFullYear();
+        const monthDelta = now.getMonth() - born.getMonth();
+        if (monthDelta < 0 || (monthDelta === 0 && now.getDate() < born.getDate())) {
+            years -= 1;
+        }
+        return years >= 0 ? years + "y" : birthDate;
+    }
+
+    function primaryTelecom(system) {
+        const match = (practitioner.telecom || []).find(function (item) {
+            return item.system === system && item.value;
+        });
+        return match ? match.value : "";
+    }
+
+    function languagePills() {
+        const items = practitioner.communication || [];
+        if (!items.length) {
+            return '<span class="text-muted">—</span>';
+        }
+        return items.map(function (item) {
+            return '<span class="badge text-bg-secondary me-1 mb-1">' +
+                esc(conceptLabel(item.language || item)) + "</span>";
+        }).join("");
+    }
+
+    function setStat(key, value) {
+        const el = document.getElementById("prd-stat-" + key);
+        if (el) {
+            el.textContent = value == null ? "—" : String(value);
+        }
+    }
+
+    function firstQualification() {
+        const items = practitioner.qualification || [];
+        return items.length ? conceptLabel(items[0].code) : "—";
+    }
+
+    function renderProfile() {
+        $("#prd-initials").text(initials(practitioner));
+        $("#prd-name").text(personName(practitioner));
+        $("#prd-crumb-name").text(personName(practitioner));
+        const parts = [
+            genderLabel(practitioner.gender),
+            ageLabel(practitioner.birthDate) || practitioner.birthDate,
+            practitioner.active !== false ? "Active" : "Inactive"
+        ].filter(Boolean);
+        $("#prd-subtitle").text(parts.join(" · "));
+        setStat("quals", (practitioner.qualification || []).length);
+        setStat("ids", (practitioner.identifier || []).length);
+        $("#prd-about-qualification").text(firstQualification());
+        const address = (practitioner.address && practitioner.address[0]) || null;
+        const place = address
+            ? [address.city, address.state].filter(Boolean).join(", ") || formatAddress(address)
+            : "";
+        $("#prd-about-location").text(place || "—");
+        $("#prd-about-dob").text(practitioner.birthDate || "—");
+        $("#prd-about-languages").html(languagePills());
+        const contact = [primaryTelecom("phone"), primaryTelecom("email")].filter(Boolean).join(" · ");
+        $("#prd-about-contact").html(
+            (contact ? esc(contact) + "<br>" : "") +
+            "<code>" + esc(practitioner.id) + "</code>"
+        );
+    }
+
     function modal(id, title, body, formId) {
         return '<div class="modal fade" id="' + id + '" tabindex="-1">' +
             '<div class="modal-dialog">' +
@@ -232,42 +326,111 @@ window.CadminPractitionerDetail = (function () {
 
     function render(resource) {
         practitioner = resource;
+        const admin = isAdmin();
         const $root = $("#app-content");
         $root.html(
-            '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
+            '<div class="d-flex align-items-center justify-content-between mb-3">' +
                 "<div>" +
-                    '<a class="small text-decoration-none" href="#/practitioners"><i class="bi bi-arrow-left me-1"></i>Practitioners</a>' +
-                    '<h1 class="h3 mb-0 page-title">' + esc(personName(practitioner)) + "</h1>" +
+                    '<nav aria-label="breadcrumb">' +
+                        '<ol class="breadcrumb mb-1">' +
+                            '<li class="breadcrumb-item"><a href="#/practitioners">Practitioners</a></li>' +
+                            '<li class="breadcrumb-item active" aria-current="page" id="prd-crumb-name">' +
+                                esc(personName(practitioner)) + "</li>" +
+                        "</ol>" +
+                    "</nav>" +
+                    '<h1 class="h3 mb-0 page-title">Practitioner</h1>' +
                 "</div>" +
-                '<a class="btn btn-outline-primary" href="#/resources/Practitioner/' + encodeURIComponent(practitioner.id) + '">' +
-                    '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                CadminResourceSource.button() +
             "</div>" +
             '<div class="row">' +
-                '<div class="col-lg-6">' + editCard("Basic details", "prd-basic-details", "#prd-basic-modal") + "</div>" +
-                '<div class="col-lg-6">' + card("Identifiers", "prd-id-rows",
-                    ["System", "Value", ""], "#prd-id-modal", "Add") + "</div>" +
+                '<div class="col-md-3">' +
+                    '<div class="card card-primary card-outline mb-4">' +
+                        '<div class="card-body box-profile">' +
+                            '<div class="text-center">' +
+                                '<div class="profile-initials mb-3" id="prd-initials">' +
+                                    esc(initials(practitioner)) + "</div>" +
+                            "</div>" +
+                            '<h3 class="profile-username text-center mb-1" id="prd-name">' +
+                                esc(personName(practitioner)) + "</h3>" +
+                            '<p class="text-muted text-center mb-2" id="prd-subtitle"></p>' +
+                            '<ul class="list-group list-group-unbordered mb-3">' +
+                                '<li class="list-group-item">' +
+                                    "<b>Qualifications</b> <span class=\"float-end\" id=\"prd-stat-quals\">0</span></li>" +
+                                '<li class="list-group-item">' +
+                                    "<b>Identifiers</b> <span class=\"float-end\" id=\"prd-stat-ids\">0</span></li>" +
+                                (admin
+                                    ? '<li class="list-group-item">' +
+                                        "<b>Roles</b> <span class=\"float-end\" id=\"prd-stat-roles\">0</span></li>" +
+                                        '<li class="list-group-item">' +
+                                        "<b>Care teams</b> <span class=\"float-end\" id=\"prd-stat-teams\">0</span></li>"
+                                    : "") +
+                            "</ul>" +
+                            '<button class="btn btn-primary w-100" type="button" data-bs-toggle="modal" ' +
+                                'data-bs-target="#prd-basic-modal">Edit details</button>' +
+                        "</div>" +
+                    "</div>" +
+                    '<div class="card mb-4">' +
+                        '<div class="card-header"><h3 class="card-title">About</h3></div>' +
+                        '<div class="card-body">' +
+                            "<strong><i class=\"bi bi-award me-1\"></i> Qualification</strong>" +
+                            '<p class="text-muted" id="prd-about-qualification">—</p><hr>' +
+                            (admin
+                                ? "<strong><i class=\"bi bi-building me-1\"></i> Organization</strong>" +
+                                    '<p class="text-muted" id="prd-about-org">—</p><hr>'
+                                : "") +
+                            "<strong><i class=\"bi bi-geo-alt me-1\"></i> Location</strong>" +
+                            '<p class="text-muted" id="prd-about-location">—</p><hr>' +
+                            "<strong><i class=\"bi bi-calendar-date me-1\"></i> Birth date</strong>" +
+                            '<p class="text-muted" id="prd-about-dob">—</p><hr>' +
+                            "<strong><i class=\"bi bi-translate me-1\"></i> Languages</strong>" +
+                            '<p class="text-muted mb-2" id="prd-about-languages">—</p><hr>' +
+                            "<strong><i class=\"bi bi-person-vcard me-1\"></i> Contact</strong>" +
+                            '<p class="text-muted mb-0" id="prd-about-contact">—</p>' +
+                        "</div>" +
+                    "</div>" +
+                "</div>" +
+                '<div class="col-md-9">' +
+                    '<div class="card">' +
+                        '<div class="card-header p-2">' +
+                            '<ul class="nav nav-pills" role="tablist">' +
+                                tabButton("prd-tab-details", "Details", true) +
+                                (admin ? tabButton("prd-tab-care", "Care", false) : "") +
+                                tabButton("prd-tab-graph", "Graph", false) +
+                            "</ul>" +
+                        "</div>" +
+                        '<div class="card-body">' +
+                            '<div class="tab-content">' +
+                                tabPane("prd-tab-details",
+                                    editCard("Basic details", "prd-basic-details", "#prd-basic-modal") +
+                                    card("Identifiers", "prd-id-rows",
+                                        ["System", "Value", ""], "#prd-id-modal", "Add") +
+                                    '<div class="row">' +
+                                        '<div class="col-lg-6">' + card("Contacts", "prd-telecom-rows",
+                                            ["System", "Value", ""], "#prd-telecom-modal", "Add") + "</div>" +
+                                        '<div class="col-lg-6">' + card("Addresses", "prd-address-rows",
+                                            ["Address", ""], "#prd-address-modal", "Add") + "</div>" +
+                                    "</div>" +
+                                    '<div class="row">' +
+                                        '<div class="col-lg-6">' + card("Qualifications", "prd-qual-rows",
+                                            ["Qualification", "Period", ""], "#prd-qual-modal", "Add") + "</div>" +
+                                        '<div class="col-lg-6">' + card("Languages", "prd-lang-rows",
+                                            ["Language", ""], "#prd-lang-modal", "Add") + "</div>" +
+                                    "</div>",
+                                    true) +
+                                (admin
+                                    ? tabPane("prd-tab-care",
+                                        card("Organization roles", "prd-role-rows",
+                                            ["Organization", "Location", "Role", "Status", ""], "#prd-role-modal", "Add") +
+                                        card("Care teams", "prd-team-rows",
+                                            ["Patient", "Care team", "Role", ""], "#prd-team-modal", "Add"),
+                                        false)
+                                    : "") +
+                                tabPane("prd-tab-graph", CadminResourceGraph.card(), false) +
+                            "</div>" +
+                        "</div>" +
+                    "</div>" +
+                "</div>" +
             "</div>" +
-            '<div class="row">' +
-                '<div class="col-lg-6">' + card("Contacts", "prd-telecom-rows",
-                    ["System", "Value", ""], "#prd-telecom-modal", "Add") + "</div>" +
-                '<div class="col-lg-6">' + card("Addresses", "prd-address-rows",
-                    ["Address", ""], "#prd-address-modal", "Add") + "</div>" +
-            "</div>" +
-            '<div class="row">' +
-                '<div class="col-lg-6">' + card("Qualifications", "prd-qual-rows",
-                    ["Qualification", "Period", ""], "#prd-qual-modal", "Add") + "</div>" +
-                '<div class="col-lg-6">' + card("Languages", "prd-lang-rows",
-                    ["Language", ""], "#prd-lang-modal", "Add") + "</div>" +
-            "</div>" +
-            (isAdmin()
-                ? '<div class="row">' +
-                    '<div class="col-lg-6">' + card("Organization roles", "prd-role-rows",
-                        ["Organization", "Location", "Role", "Status", ""], "#prd-role-modal", "Add") + "</div>" +
-                    '<div class="col-lg-6">' + card("Care teams", "prd-team-rows",
-                        ["Patient", "Care team", "Role", ""], "#prd-team-modal", "Add") + "</div>" +
-                "</div>"
-                : "") +
-            CadminResourceGraph.card() +
             modal("prd-basic-modal", "Edit basic details",
                 field("Prefix", '<input class="form-control" id="prd-prefix" placeholder="Dr">') +
                 field("Given name", '<input class="form-control" id="prd-given" required>') +
@@ -332,6 +495,7 @@ window.CadminPractitionerDetail = (function () {
                 field("Role", '<select class="form-select" id="prd-ct-role">' + optionsHtml(practitionerRoles) + "</select>"),
                 "prd-team-form")
         );
+        CadminResourceSource.mount(function () { return practitioner; });
         CadminResourceGraph.mount(practitioner);
         renderBasics();
         renderIdentifiers();
@@ -366,11 +530,12 @@ window.CadminPractitionerDetail = (function () {
                 '<dt class="col-sm-4">ID</dt><dd class="col-sm-8"><code>' + esc(practitioner.id) + "</code></dd>" +
             "</dl>"
         );
-        $(".page-title").first().text(personName(practitioner));
+        renderProfile();
     }
 
     function renderIdentifiers() {
         const items = practitioner.identifier || [];
+        setStat("ids", items.length);
         if (!items.length) {
             $("#prd-id-rows").html(emptyRow(3, "No identifiers."));
             return;
@@ -410,6 +575,7 @@ window.CadminPractitionerDetail = (function () {
 
     function renderQualifications() {
         const items = practitioner.qualification || [];
+        setStat("quals", items.length);
         if (!items.length) {
             $("#prd-qual-rows").html(emptyRow(3, "No qualifications."));
             return;
@@ -428,7 +594,7 @@ window.CadminPractitionerDetail = (function () {
             return;
         }
         $("#prd-lang-rows").html(items.map(function (item, index) {
-            return "<tr><td>" + esc(conceptLabel(item)) + "</td>" +
+            return "<tr><td>" + esc(conceptLabel(item.language || item)) + "</td>" +
                 '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove="communication" data-index="' +
                 index + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
         }).join(""));
@@ -452,6 +618,7 @@ window.CadminPractitionerDetail = (function () {
     }
 
     function renderCareTeamRows(teams, patients) {
+        setStat("teams", teams.length);
         if (!teams.length) {
             $("#prd-team-rows").html(emptyRow(4, "No care teams."));
             return;
@@ -501,6 +668,7 @@ window.CadminPractitionerDetail = (function () {
 
         CadminApi.fhir("/CareTeam?_count=200&_include=CareTeam:subject").done(apply).fail(function () {
             CadminApi.fhir("/CareTeam?_count=200").done(apply).fail(function (xhr) {
+                setStat("teams", 0);
                 $("#prd-team-rows").html(emptyRow(4, "Unable to load care teams."));
                 fail("Load care teams", xhr);
             });
@@ -679,6 +847,17 @@ window.CadminPractitionerDetail = (function () {
                     rolesById[resource.id] = resource;
                 }
             });
+            setStat("roles", roles.length);
+            const first = roles.find(function (role) { return role.active !== false; }) || roles[0];
+            if (first) {
+                const orgId = refId(first.organization);
+                const orgName = (orgs[orgId] && orgs[orgId].name) || refLabel(first.organization);
+                $("#prd-about-org").html(orgId
+                    ? '<a href="#/organizations/' + encodeURIComponent(orgId) + '">' + esc(orgName) + "</a>"
+                    : esc(orgName || "—"));
+            } else {
+                $("#prd-about-org").text("—");
+            }
             if (!roles.length) {
                 $("#prd-role-rows").html(emptyRow(5, "No organization roles."));
                 return;
@@ -704,6 +883,8 @@ window.CadminPractitionerDetail = (function () {
                     esc(role.id) + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
             }).join(""));
         }).fail(function (xhr) {
+            setStat("roles", 0);
+            $("#prd-about-org").text("—");
             $("#prd-role-rows").html(emptyRow(5, "Unable to load roles."));
             fail("Load roles", xhr);
         });
@@ -733,6 +914,12 @@ window.CadminPractitionerDetail = (function () {
     function bindForms() {
         const $root = $("#app-content");
         $root.off(".prdetail");
+
+        $root.on("shown.bs.tab.prdetail", "#prd-tab-graph-btn", function () {
+            if (typeof CadminResourceGraph.resize === "function") {
+                CadminResourceGraph.resize();
+            }
+        });
 
         $root.on("click.prdetail", "[data-remove]", function () {
             const fieldName = $(this).attr("data-remove");

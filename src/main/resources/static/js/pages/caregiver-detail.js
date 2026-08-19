@@ -159,6 +159,104 @@ window.CadminCaregiverDetail = (function () {
         "</div>";
     }
 
+    function tabButton(id, label, active) {
+        return '<li class="nav-item" role="presentation">' +
+            '<button class="nav-link' + (active ? " active" : "") + '" id="' + id + '-btn" data-bs-toggle="tab" ' +
+            'data-bs-target="#' + id + '" type="button" role="tab" aria-controls="' + id +
+            '" aria-selected="' + (active ? "true" : "false") + '">' + label + "</button></li>";
+    }
+
+    function tabPane(id, body, active) {
+        return '<div class="tab-pane fade' + (active ? " show active" : "") + '" id="' + id +
+            '" role="tabpanel" aria-labelledby="' + id + '-btn">' + body + "</div>";
+    }
+
+    function initials(resource) {
+        const name = (resource && resource.name && resource.name[0]) || {};
+        const given = ((name.given && name.given[0]) || "").charAt(0);
+        const family = (name.family || "").charAt(0);
+        const letters = (given + family) || "?";
+        return letters.toUpperCase();
+    }
+
+    function ageLabel(birthDate) {
+        if (!birthDate) {
+            return "";
+        }
+        const born = new Date(birthDate + "T00:00:00");
+        if (isNaN(born.getTime())) {
+            return birthDate;
+        }
+        const now = new Date();
+        let years = now.getFullYear() - born.getFullYear();
+        const monthDelta = now.getMonth() - born.getMonth();
+        if (monthDelta < 0 || (monthDelta === 0 && now.getDate() < born.getDate())) {
+            years -= 1;
+        }
+        return years >= 0 ? years + "y" : birthDate;
+    }
+
+    function primaryTelecom(system) {
+        const match = (caregiver.telecom || []).find(function (item) {
+            return item.system === system && item.value;
+        });
+        return match ? match.value : "";
+    }
+
+    function languagePills() {
+        const items = caregiver.communication || [];
+        if (!items.length) {
+            return '<span class="text-muted">—</span>';
+        }
+        return items.map(function (item) {
+            return '<span class="badge text-bg-secondary me-1 mb-1">' +
+                esc(conceptLabel(item.language || item)) + "</span>";
+        }).join("");
+    }
+
+    function setStat(key, value) {
+        const el = document.getElementById("cgd-stat-" + key);
+        if (el) {
+            el.textContent = value == null ? "—" : String(value);
+        }
+    }
+
+    function patientRefHtml() {
+        const id = refId(caregiver.patient);
+        if (!id) {
+            return "—";
+        }
+        return '<a href="#/patients/' + encodeURIComponent(id) + '">' +
+            esc(refLabel(caregiver.patient)) + "</a>";
+    }
+
+    function renderProfile() {
+        $("#cgd-initials").text(initials(caregiver));
+        $("#cgd-name").text(personName(caregiver));
+        $("#cgd-crumb-name").text(personName(caregiver));
+        const parts = [
+            genderLabel(caregiver.gender),
+            ageLabel(caregiver.birthDate) || caregiver.birthDate,
+            caregiver.active !== false ? "Active" : "Inactive"
+        ].filter(Boolean);
+        $("#cgd-subtitle").text(parts.join(" · "));
+        setStat("ids", (caregiver.identifier || []).length);
+        $("#cgd-about-patient").html(patientRefHtml());
+        $("#cgd-about-relationship").text(conceptLabel(caregiver.relationship));
+        const address = (caregiver.address && caregiver.address[0]) || null;
+        const place = address
+            ? [address.city, address.state].filter(Boolean).join(", ") || formatAddress(address)
+            : "";
+        $("#cgd-about-location").text(place || "—");
+        $("#cgd-about-dob").text(caregiver.birthDate || "—");
+        $("#cgd-about-languages").html(languagePills());
+        const contact = [primaryTelecom("phone"), primaryTelecom("email")].filter(Boolean).join(" · ");
+        $("#cgd-about-contact").html(
+            (contact ? esc(contact) + "<br>" : "") +
+            "<code>" + esc(caregiver.id) + "</code>"
+        );
+    }
+
     function modal(id, title, body, formId) {
         return '<div class="modal fade" id="' + id + '" tabindex="-1">' +
             '<div class="modal-dialog">' +
@@ -208,36 +306,101 @@ window.CadminCaregiverDetail = (function () {
 
     function render(resource) {
         caregiver = resource;
+        const admin = isAdmin();
         const $root = $("#app-content");
         $root.html(
-            '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
+            '<div class="d-flex align-items-center justify-content-between mb-3">' +
                 "<div>" +
-                    '<a class="small text-decoration-none" href="#/caregivers"><i class="bi bi-arrow-left me-1"></i>Caregivers</a>' +
-                    '<h1 class="h3 mb-0 page-title">' + esc(personName(caregiver)) + "</h1>" +
+                    '<nav aria-label="breadcrumb">' +
+                        '<ol class="breadcrumb mb-1">' +
+                            '<li class="breadcrumb-item"><a href="#/caregivers">Caregivers</a></li>' +
+                            '<li class="breadcrumb-item active" aria-current="page" id="cgd-crumb-name">' +
+                                esc(personName(caregiver)) + "</li>" +
+                        "</ol>" +
+                    "</nav>" +
+                    '<h1 class="h3 mb-0 page-title">Caregiver</h1>' +
                 "</div>" +
-                '<a class="btn btn-outline-primary" href="#/resources/RelatedPerson/' + encodeURIComponent(caregiver.id) + '">' +
-                    '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                CadminResourceSource.button() +
             "</div>" +
             '<div class="row">' +
-                '<div class="col-lg-6">' + editCard("Basic details", "cgd-basic-details", "#cgd-basic-modal") + "</div>" +
-                '<div class="col-lg-6">' + card("Identifiers", "cgd-id-rows",
-                    ["System", "Value", ""], "#cgd-id-modal", "Add") + "</div>" +
+                '<div class="col-md-3">' +
+                    '<div class="card card-primary card-outline mb-4">' +
+                        '<div class="card-body box-profile">' +
+                            '<div class="text-center">' +
+                                '<div class="profile-initials mb-3" id="cgd-initials">' +
+                                    esc(initials(caregiver)) + "</div>" +
+                            "</div>" +
+                            '<h3 class="profile-username text-center mb-1" id="cgd-name">' +
+                                esc(personName(caregiver)) + "</h3>" +
+                            '<p class="text-muted text-center mb-2" id="cgd-subtitle"></p>' +
+                            '<ul class="list-group list-group-unbordered mb-3">' +
+                                '<li class="list-group-item">' +
+                                    "<b>Identifiers</b> <span class=\"float-end\" id=\"cgd-stat-ids\">0</span></li>" +
+                                (admin
+                                    ? '<li class="list-group-item">' +
+                                        "<b>Patients</b> <span class=\"float-end\" id=\"cgd-stat-patients\">0</span></li>" +
+                                        '<li class="list-group-item">' +
+                                        "<b>Care teams</b> <span class=\"float-end\" id=\"cgd-stat-teams\">0</span></li>"
+                                    : "") +
+                            "</ul>" +
+                            '<button class="btn btn-primary w-100" type="button" data-bs-toggle="modal" ' +
+                                'data-bs-target="#cgd-basic-modal">Edit details</button>' +
+                        "</div>" +
+                    "</div>" +
+                    '<div class="card mb-4">' +
+                        '<div class="card-header"><h3 class="card-title">About</h3></div>' +
+                        '<div class="card-body">' +
+                            "<strong><i class=\"bi bi-person me-1\"></i> Patient</strong>" +
+                            '<p class="text-muted" id="cgd-about-patient">—</p><hr>' +
+                            "<strong><i class=\"bi bi-person-heart me-1\"></i> Relationship</strong>" +
+                            '<p class="text-muted" id="cgd-about-relationship">—</p><hr>' +
+                            "<strong><i class=\"bi bi-geo-alt me-1\"></i> Location</strong>" +
+                            '<p class="text-muted" id="cgd-about-location">—</p><hr>' +
+                            "<strong><i class=\"bi bi-calendar-date me-1\"></i> Birth date</strong>" +
+                            '<p class="text-muted" id="cgd-about-dob">—</p><hr>' +
+                            "<strong><i class=\"bi bi-translate me-1\"></i> Languages</strong>" +
+                            '<p class="text-muted mb-2" id="cgd-about-languages">—</p><hr>' +
+                            "<strong><i class=\"bi bi-person-vcard me-1\"></i> Contact</strong>" +
+                            '<p class="text-muted mb-0" id="cgd-about-contact">—</p>' +
+                        "</div>" +
+                    "</div>" +
+                "</div>" +
+                '<div class="col-md-9">' +
+                    '<div class="card">' +
+                        '<div class="card-header p-2">' +
+                            '<ul class="nav nav-pills" role="tablist">' +
+                                tabButton("cgd-tab-details", "Details", true) +
+                                (admin ? tabButton("cgd-tab-care", "Care", false) : "") +
+                                tabButton("cgd-tab-graph", "Graph", false) +
+                            "</ul>" +
+                        "</div>" +
+                        '<div class="card-body">' +
+                            '<div class="tab-content">' +
+                                tabPane("cgd-tab-details",
+                                    editCard("Basic details", "cgd-basic-details", "#cgd-basic-modal") +
+                                    card("Identifiers", "cgd-id-rows",
+                                        ["System", "Value", ""], "#cgd-id-modal", "Add") +
+                                    '<div class="row">' +
+                                        '<div class="col-lg-6">' + card("Contacts", "cgd-telecom-rows",
+                                            ["System", "Value", ""], "#cgd-telecom-modal", "Add") + "</div>" +
+                                        '<div class="col-lg-6">' + card("Addresses", "cgd-address-rows",
+                                            ["Address", ""], "#cgd-address-modal", "Add") + "</div>" +
+                                    "</div>" +
+                                    card("Languages", "cgd-lang-rows",
+                                        ["Language", ""], "#cgd-lang-modal", "Add"),
+                                    true) +
+                                (admin
+                                    ? tabPane("cgd-tab-care",
+                                        card("Patients", "cgd-team-rows",
+                                            ["Patient", "Care team", "Role", ""], "#cgd-team-modal", "Add"),
+                                        false)
+                                    : "") +
+                                tabPane("cgd-tab-graph", CadminResourceGraph.card(), false) +
+                            "</div>" +
+                        "</div>" +
+                    "</div>" +
+                "</div>" +
             "</div>" +
-            '<div class="row">' +
-                '<div class="col-lg-6">' + card("Contacts", "cgd-telecom-rows",
-                    ["System", "Value", ""], "#cgd-telecom-modal", "Add") + "</div>" +
-                '<div class="col-lg-6">' + card("Addresses", "cgd-address-rows",
-                    ["Address", ""], "#cgd-address-modal", "Add") + "</div>" +
-            "</div>" +
-            '<div class="row">' +
-                '<div class="col-lg-6">' + card("Languages", "cgd-lang-rows",
-                    ["Language", ""], "#cgd-lang-modal", "Add") + "</div>" +
-                (isAdmin()
-                    ? '<div class="col-lg-6">' + card("Patients", "cgd-team-rows",
-                        ["Patient", "Care team", "Role", ""], "#cgd-team-modal", "Add") + "</div>"
-                    : "") +
-            "</div>" +
-            CadminResourceGraph.card() +
             modal("cgd-basic-modal", "Edit basic details",
                 field("Prefix", '<input class="form-control" id="cgd-prefix">') +
                 field("Given name", '<input class="form-control" id="cgd-given" required>') +
@@ -280,6 +443,7 @@ window.CadminCaregiverDetail = (function () {
                     "cgd-team-form")
                 : "")
         );
+        CadminResourceSource.mount(function () { return caregiver; });
         CadminResourceGraph.mount(caregiver);
         renderBasics();
         renderIdentifiers();
@@ -309,11 +473,12 @@ window.CadminCaregiverDetail = (function () {
                 '<dt class="col-sm-4">ID</dt><dd class="col-sm-8"><code>' + esc(caregiver.id) + "</code></dd>" +
             "</dl>"
         );
-        $(".page-title").first().text(personName(caregiver));
+        renderProfile();
     }
 
     function renderIdentifiers() {
         const items = caregiver.identifier || [];
+        setStat("ids", items.length);
         if (!items.length) {
             $("#cgd-id-rows").html(emptyRow(3, "No identifiers."));
             return;
@@ -358,7 +523,7 @@ window.CadminCaregiverDetail = (function () {
             return;
         }
         $("#cgd-lang-rows").html(items.map(function (item, index) {
-            return "<tr><td>" + esc(conceptLabel(item)) + "</td>" +
+            return "<tr><td>" + esc(conceptLabel(item.language || item)) + "</td>" +
                 '<td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove="communication" data-index="' +
                 index + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
         }).join(""));
@@ -376,6 +541,15 @@ window.CadminCaregiverDetail = (function () {
                     teams.push(resource);
                 }
             });
+            setStat("teams", teams.length);
+            const seenPatients = {};
+            teams.forEach(function (team) {
+                const id = refId(team.subject);
+                if (id) {
+                    seenPatients[id] = true;
+                }
+            });
+            setStat("patients", Object.keys(seenPatients).length);
             if (!teams.length) {
                 $("#cgd-team-rows").html(emptyRow(4, "No patients via care teams."));
                 return;
@@ -394,6 +568,8 @@ window.CadminCaregiverDetail = (function () {
                     esc(team.id) + '" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button></td></tr>';
             }).join(""));
         }).fail(function (xhr) {
+            setStat("teams", 0);
+            setStat("patients", 0);
             $("#cgd-team-rows").html(emptyRow(4, "Unable to load care teams."));
             fail("Load care teams", xhr);
         });
@@ -459,6 +635,12 @@ window.CadminCaregiverDetail = (function () {
     function bindForms() {
         const $root = $("#app-content");
         $root.off(".cgdetail");
+
+        $root.on("shown.bs.tab.cgdetail", "#cgd-tab-graph-btn", function () {
+            if (typeof CadminResourceGraph.resize === "function") {
+                CadminResourceGraph.resize();
+            }
+        });
 
         $root.on("click.cgdetail", "[data-remove]", function () {
             const fieldName = $(this).attr("data-remove");

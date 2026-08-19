@@ -429,6 +429,7 @@ window.CadminConsentDetail = (function () {
                     '<div id="cd-pr-data-list"></div></div>',
                 "cd-provision-form", true)
         );
+        CadminResourceSource.mount(function () { return consent; });
         CadminResourceGraph.mount(consent);
         renderHeader();
         renderBasics();
@@ -450,9 +451,7 @@ window.CadminConsentDetail = (function () {
             actions += '<button class="btn btn-outline-secondary" type="button" id="cd-inactivate">' +
                 '<i class="bi bi-pause-circle me-1"></i>Inactivate</button>';
         }
-        actions += '<a class="btn btn-outline-primary" href="#/resources/Consent/' +
-            encodeURIComponent(consent.id) + '">' +
-            '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>';
+        actions += CadminResourceSource.button();
         $("#cd-actions").html(actions);
     }
 

@@ -176,9 +176,7 @@ window.CadminSubscriptionTopicDetail = (function () {
                 '<div class="d-flex gap-2">' +
                     '<button class="btn btn-outline-primary" type="button" id="topic-new-sub">' +
                         '<i class="bi bi-broadcast me-1"></i>New subscription</button>' +
-                    '<a class="btn btn-outline-primary" href="#/resources/SubscriptionTopic/' +
-                        encodeURIComponent(topic.id) + '">' +
-                        '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                    CadminResourceSource.button() +
                 "</div>" +
             "</div>" +
             '<div id="topic-detail-alert" class="alert d-none"></div>' +
@@ -255,6 +253,7 @@ window.CadminSubscriptionTopicDetail = (function () {
                 field("Revinclude", '<input class="form-control font-monospace" id="td-ns-revinclude" placeholder="Observation:subject">'),
                 "td-shape-form")
         );
+        CadminResourceSource.mount(function () { return topic; });
         CadminResourceGraph.mount(topic);
         renderBasics();
         renderTrigger();

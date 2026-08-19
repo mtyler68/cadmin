@@ -270,6 +270,7 @@ window.CadminSubscriptionDetail = (function () {
                 field("Value", '<input class="form-control font-monospace" id="sd-pn-value" required>'),
                 "sd-param-form")
         );
+        CadminResourceSource.mount(function () { return subscription; });
         CadminResourceGraph.mount(subscription);
         renderHeader();
         renderBasics();
@@ -316,9 +317,7 @@ window.CadminSubscriptionDetail = (function () {
             actions += '<button class="btn btn-outline-primary" type="button" id="sd-rerequest">' +
                 '<i class="bi bi-arrow-repeat me-1"></i>Re-request</button>';
         }
-        actions += '<a class="btn btn-outline-primary" href="#/resources/Subscription/' +
-            encodeURIComponent(subscription.id) + '">' +
-            '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>';
+        actions += CadminResourceSource.button();
         $("#sd-actions").html(actions);
     }
 

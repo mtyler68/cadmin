@@ -138,6 +138,7 @@ window.CadminFlagDetail = (function () {
             flag = updated || flag;
             renderHeader();
             renderBasics();
+            CadminResourceSource.mount(function () { return flag; });
             CadminResourceGraph.mount(flag);
             if (next) {
                 next();
@@ -317,9 +318,7 @@ window.CadminFlagDetail = (function () {
                         '<i class="bi bi-flag me-1"></i>Inactivate</button>' +
                     '<button class="btn btn-outline-danger" type="button" id="fd-delete">' +
                         '<i class="bi bi-trash me-1"></i>Delete</button>' +
-                    '<a class="btn btn-outline-primary" href="#/resources/Flag/' +
-                        encodeURIComponent(flag.id) + '">' +
-                        '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                    CadminResourceSource.button() +
                 "</div>" +
             "</div>" +
             '<div id="flag-detail-alert" class="alert d-none"></div>' +
@@ -356,6 +355,7 @@ window.CadminFlagDetail = (function () {
                 "</div>" +
             "</div>"
         );
+        CadminResourceSource.mount(function () { return flag; });
         CadminResourceGraph.mount(flag);
         renderHeader();
         renderBasics();

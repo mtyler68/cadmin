@@ -275,8 +275,7 @@ window.CadminOrganizationDetail = (function () {
                     '<a class="small text-decoration-none" href="#/organizations"><i class="bi bi-arrow-left me-1"></i>Organizations</a>' +
                     '<h1 class="h3 mb-0 page-title">' + esc(org.name || "Organization") + "</h1>" +
                 "</div>" +
-                '<a class="btn btn-outline-primary" href="#/resources/Organization/' + encodeURIComponent(org.id) + '">' +
-                    '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                CadminResourceSource.button() +
             "</div>" +
             editCard("Basic details", "org-basic-details", "#od-basic-modal") +
             '<div class="row">' +
@@ -368,6 +367,7 @@ window.CadminOrganizationDetail = (function () {
                     '<label class="form-check-label" for="od-pr-edit-active">Active</label></div>',
                 "od-role-edit-form")
         );
+        CadminResourceSource.mount(function () { return org; });
         CadminResourceGraph.mount(org);
         renderBasics();
         loadChildren();

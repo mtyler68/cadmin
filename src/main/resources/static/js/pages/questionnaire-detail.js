@@ -300,6 +300,7 @@ window.CadminQuestionnaireDetail = (function () {
                 renderTree();
                 renderInspector();
                 renderPreview();
+                CadminResourceSource.mount(function () { return questionnaire; });
                 CadminResourceGraph.mount(questionnaire);
                 if (next) {
                     next();
@@ -327,9 +328,7 @@ window.CadminQuestionnaireDetail = (function () {
                         '<i class="bi bi-check2 me-1"></i>Save</button>' +
                     '<button class="btn btn-outline-danger" type="button" id="qd-delete">' +
                         '<i class="bi bi-trash me-1"></i>Delete</button>' +
-                    '<a class="btn btn-outline-primary" href="#/resources/Questionnaire/' +
-                        encodeURIComponent(questionnaire.id) + '">' +
-                        '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                    CadminResourceSource.button() +
                 "</div>" +
             "</div>" +
             '<div class="card shadow mb-4">' +
@@ -400,6 +399,7 @@ window.CadminQuestionnaireDetail = (function () {
                 "</div>" +
             "</div>"
         );
+        CadminResourceSource.mount(function () { return questionnaire; });
         CadminResourceGraph.mount(questionnaire);
         renderMeta();
         renderTree();

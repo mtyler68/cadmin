@@ -1158,11 +1158,13 @@ window.CadminPdsPolicyDetail = (function () {
 
     function ruleCardHtml(rule) {
         const item = Object.assign(emptyRule(), rule || {});
-        return '<div class="card border mb-3 pd-rule-card">' +
-            '<div class="card-header py-2 d-flex justify-content-between align-items-center bg-white">' +
-                '<span class="fw-semibold">Rule</span>' +
-                '<button class="btn btn-sm btn-outline-danger" type="button" data-rule-remove title="Remove rule">' +
-                    '<i class="bi bi-trash"></i></button>' +
+        return '<div class="card card-primary card-outline mb-3 pd-rule-card">' +
+            '<div class="card-header">' +
+                '<h3 class="card-title">Rule</h3>' +
+                '<div class="card-tools">' +
+                    '<button class="btn btn-sm btn-outline-danger" type="button" data-rule-remove title="Remove rule">' +
+                        '<i class="bi bi-trash"></i></button>' +
+                "</div>" +
             "</div>" +
             '<div class="card-body">' +
                 '<div class="row">' +
@@ -1290,17 +1292,16 @@ window.CadminPdsPolicyDetail = (function () {
                     '<a class="small text-decoration-none" href="#/pds-policies"><i class="bi bi-arrow-left me-1"></i>PDS Policies</a>' +
                     '<h1 class="h3 mb-0 page-title">' + esc(library.title || library.name || "PDS policy") + "</h1>" +
                 "</div>" +
-                '<a class="btn btn-outline-primary" href="#/resources/Library/' + encodeURIComponent(library.id) + '">' +
-                    '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                CadminResourceSource.button() +
             "</div>" +
-            '<div class="card shadow mb-4">' +
+            '<div class="card card-success card-outline mb-4">' +
                 '<form id="pd-policy-form">' +
-                    '<div class="card-header py-3 d-flex justify-content-between align-items-center">' +
+                    '<div class="card-header">' +
                         "<div>" +
-                            '<h6 class="m-0">Policy content</h6>' +
+                            '<h3 class="card-title">Policy content</h3>' +
                             '<div class="small text-muted mt-1"><code>' + esc(policyContentType) + "</code></div>" +
                         "</div>" +
-                        '<div class="d-flex gap-2">' +
+                        '<div class="card-tools d-flex gap-2">' +
                             '<button class="btn btn-sm btn-primary" type="submit">Save</button>' +
                             '<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#pd-yaml-modal">' +
                                 '<i class="bi bi-filetype-yml me-1"></i>View YAML</button>' +
@@ -1427,6 +1428,7 @@ window.CadminPdsPolicyDetail = (function () {
                 field("Resource", '<input class="form-control" id="pd-art-resource" placeholder="e.g. Library/123">'),
                 "pd-artifact-form")
         );
+        CadminResourceSource.mount(function () { return library; });
         CadminResourceGraph.mount(library);
         renderBasics();
         renderIdentity();

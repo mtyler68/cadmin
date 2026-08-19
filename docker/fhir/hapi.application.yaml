@@ -21,3 +21,4 @@ hapi:
       allow_Credentials: true
       allowed_origin:
         - http://localhost:8080
+        - http://localhost:8480

@@ -240,8 +240,7 @@ window.CadminDeviceDetail = (function () {
                     '<a class="small text-decoration-none" href="#/devices"><i class="bi bi-arrow-left me-1"></i>Devices</a>' +
                     '<h1 class="h3 mb-0 page-title">' + esc(deviceLabel(device)) + "</h1>" +
                 "</div>" +
-                '<a class="btn btn-outline-primary" href="#/resources/Device/' + encodeURIComponent(device.id) + '">' +
-                    '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                CadminResourceSource.button() +
             "</div>" +
             '<div class="row">' +
                 '<div class="col-lg-6">' + editCard("Basic details", "dev-basic-details", "#dd-basic-modal") + "</div>" +
@@ -303,6 +302,7 @@ window.CadminDeviceDetail = (function () {
                 field("Value", '<input class="form-control" id="dd-tel-value" required>'),
                 "dd-contact-form")
         );
+        CadminResourceSource.mount(function () { return device; });
         CadminResourceGraph.mount(device);
         renderBasics();
         renderAssignment();

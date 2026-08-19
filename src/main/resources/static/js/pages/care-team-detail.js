@@ -251,8 +251,7 @@ window.CadminCareTeamDetail = (function () {
                         '<i class="bi bi-arrow-left me-1"></i>Care Teams</a>' +
                     '<h1 class="h3 mb-0 page-title">' + esc(teamName(team)) + "</h1>" +
                 "</div>" +
-                '<a class="btn btn-outline-primary" href="#/resources/CareTeam/' + encodeURIComponent(team.id) + '">' +
-                    '<i class="bi bi-code-slash me-1"></i>FHIR resource</a>' +
+                CadminResourceSource.button() +
             "</div>" +
             '<div class="row">' +
                 '<div class="col-lg-6">' + editCard("Basic details", "ctd-basic-details", "#ctd-basic-modal") + "</div>" +
@@ -288,6 +287,7 @@ window.CadminCareTeamDetail = (function () {
                     optionsHtml(practitionerRoles) + "</select>"),
                 "ctd-practitioner-form")
         );
+        CadminResourceSource.mount(function () { return team; });
         CadminResourceGraph.mount(team);
         renderBasics();
         renderCaregivers();

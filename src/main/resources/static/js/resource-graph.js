@@ -35,7 +35,7 @@ window.CadminResourceGraph = (function () {
         Endpoint: "#36b9cc"
     };
     const DEPTH_MIN = 1;
-    const DEPTH_MAX = 3;
+    const DEPTH_MAX = 4;
     const DEPTH_DEFAULT = 2;
     const NEIGHBOR_FETCH_LIMIT = 10;
 
@@ -48,16 +48,63 @@ window.CadminResourceGraph = (function () {
     let mountedResource = null;
     let mountedByKey = null;
     let expandToken = 0;
+    let themeBound = false;
+
+    function cssColor(name, fallback) {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        if (!raw) {
+            return fallback;
+        }
+        if (/^\d+(\.\d+)?(\s*,\s*\d+(\.\d+)?){2}/.test(raw)) {
+            return "rgb(" + raw + ")";
+        }
+        return raw;
+    }
+
+    function themePalette() {
+        return {
+            canvas: cssColor("--bs-body-bg", "#fff"),
+            nodeBg: cssColor("--bs-body-bg", "#fff"),
+            nodeHover: cssColor("--bs-secondary-bg", "#f8f9fc"),
+            text: cssColor("--bs-body-color", "#5a5c69"),
+            muted: cssColor("--bs-secondary-color", "#858796"),
+            border: cssColor("--bs-border-color", "#dee2e6"),
+            primary: cssColor("--bs-primary", "#0d6efd"),
+            onPrimary: cssColor("--bs-white", "#fff")
+        };
+    }
+
+    function bindTheme() {
+        if (themeBound) {
+            return;
+        }
+        themeBound = true;
+        const observer = new MutationObserver(function () {
+            restyleNetwork();
+        });
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["data-bs-theme"]
+        });
+        if (window.matchMedia) {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", restyleNetwork);
+        }
+    }
+
+    function restyleNetwork() {
+        if (!lastGraph || !nodeSet || !edgeSet) {
+            return;
+        }
+        nodeSet.update(visNodes(lastGraph));
+        edgeSet.update(visEdges(lastGraph));
+        if (network) {
+            network.redraw();
+        }
+    }
 
     function clampDepth(value) {
         const n = parseInt(value, 10);
-        if (n < DEPTH_MIN) {
-            return DEPTH_MIN;
-        }
-        if (n > DEPTH_MAX) {
-            return DEPTH_MAX;
-        }
-        if (n === 1 || n === 2 || n === 3) {
+        if (n >= DEPTH_MIN && n <= DEPTH_MAX) {
             return n;
         }
         return DEPTH_DEFAULT;
@@ -127,6 +174,21 @@ window.CadminResourceGraph = (function () {
                         '<i class="bi bi-distribute-vertical" aria-hidden="true"></i>' +
                         '<span class="ms-1">Declutter</span>' +
                     "</button>" +
+                    '<div class="btn-group btn-group-sm ms-2 resource-graph-export">' +
+                        '<button class="btn btn-outline-secondary" type="button" id="resource-graph-export-png" title="Open the current graph as a PNG image">' +
+                            '<i class="bi bi-image" aria-hidden="true"></i>' +
+                            '<span class="ms-1">PNG</span>' +
+                        "</button>" +
+                        '<button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" aria-label="Open graph as an image or SVG">' +
+                            '<span class="visually-hidden">More graph image formats</span>' +
+                        "</button>" +
+                        '<ul class="dropdown-menu dropdown-menu-end">' +
+                            '<li><button class="dropdown-item" type="button" id="resource-graph-export-png-item">' +
+                                '<i class="bi bi-filetype-png me-2" aria-hidden="true"></i>Open as PNG</button></li>' +
+                            '<li><button class="dropdown-item" type="button" id="resource-graph-export-svg">' +
+                                '<i class="bi bi-filetype-svg me-2" aria-hidden="true"></i>Open as SVG</button></li>' +
+                        "</ul>" +
+                    "</div>" +
                     '<button type="button" class="btn btn-tool" data-lte-toggle="card-maximize" title="Maximize" aria-label="Maximize">' +
                         '<i data-lte-icon="maximize" class="bi bi-fullscreen"></i>' +
                         '<i data-lte-icon="minimize" class="bi bi-fullscreen-exit"></i>' +
@@ -474,23 +536,225 @@ window.CadminResourceGraph = (function () {
         });
     }
 
-    function visEdges(graph) {
-        const groups = {};
-        graph.edges.forEach(function (edge, index) {
-            const pair = edge.from + "\0" + edge.to;
-            if (!groups[pair]) {
-                groups[pair] = [];
+    function undirectedKey(from, to) {
+        return from < to ? from + "\0" + to : to + "\0" + from;
+    }
+
+    function edgePairGroups(graph) {
+        const pairs = {};
+        (graph.edges || []).forEach(function (edge, index) {
+            const key = undirectedKey(edge.from, edge.to);
+            if (!pairs[key]) {
+                pairs[key] = { key: key, fwd: [], rev: [] };
             }
-            groups[pair].push(index);
+            if (edge.from < edge.to) {
+                pairs[key].fwd.push({ edge: edge, index: index });
+            } else {
+                pairs[key].rev.push({ edge: edge, index: index });
+            }
+        });
+        return pairs;
+    }
+
+    function isBidirectionalPair(pair) {
+        return pair && pair.fwd.length > 0 && pair.rev.length > 0;
+    }
+
+    function edgeGoesRight(fromId, toId) {
+        if (network) {
+            const pos = network.getPositions([fromId, toId]);
+            const from = pos[fromId];
+            const to = pos[toId];
+            if (from && to && (from.x !== to.x || from.y !== to.y)) {
+                if (Math.abs(to.x - from.x) >= Math.abs(to.y - from.y)) {
+                    return to.x >= from.x;
+                }
+                return to.y >= from.y;
+            }
+        }
+        return fromId < toId;
+    }
+
+    function directionMark(fromId, toId) {
+        if (network) {
+            const pos = network.getPositions([fromId, toId]);
+            const from = pos[fromId];
+            const to = pos[toId];
+            if (from && to) {
+                const dx = to.x - from.x;
+                const dy = to.y - from.y;
+                if (Math.abs(dx) >= Math.abs(dy)) {
+                    return dx >= 0
+                        ? { atEnd: true, mark: "▶" }
+                        : { atEnd: false, mark: "◀" };
+                }
+                return dy >= 0
+                    ? { atEnd: true, mark: "▼" }
+                    : { atEnd: false, mark: "▲" };
+            }
+        }
+        return edgeGoesRight(fromId, toId)
+            ? { atEnd: true, mark: "▶" }
+            : { atEnd: false, mark: "◀" };
+    }
+
+    const LABEL_FONT = "11px system-ui, sans-serif";
+    const LABEL_HEIGHT = 14;
+    const LABEL_PAD = 8;
+
+    function triangleLabel(text, fromId, toId) {
+        const short = abbreviate(text, 22) || "link";
+        const dir = directionMark(fromId, toId);
+        return dir.atEnd ? short + " " + dir.mark : dir.mark + " " + short;
+    }
+
+    function pairAxis(fromId, toId) {
+        const pos = network.getPositions([fromId, toId]);
+        const from = pos[fromId];
+        const to = pos[toId];
+        if (!from || !to) {
+            return null;
+        }
+        const alongFrom = fromId < toId ? from : to;
+        const alongTo = fromId < toId ? to : from;
+        const dx = alongTo.x - alongFrom.x;
+        const dy = alongTo.y - alongFrom.y;
+        const len = Math.hypot(dx, dy) || 1;
+        return {
+            mx: (from.x + to.x) / 2,
+            my: (from.y + to.y) / 2,
+            nx: -dy / len,
+            ny: dx / len
+        };
+    }
+
+    function paintDirectedLabel(ctx, x, y, text, theme) {
+        ctx.save();
+        ctx.font = LABEL_FONT;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = theme.canvas;
+        ctx.fillStyle = theme.muted;
+        ctx.strokeText(text, x, y);
+        ctx.fillText(text, x, y);
+        ctx.restore();
+    }
+
+    function measurePairLabels(ctx, items) {
+        ctx.font = LABEL_FONT;
+        return items.map(function (item) {
+            const text = triangleLabel(item.edge.label, item.edge.from, item.edge.to);
+            return {
+                item: item,
+                text: text,
+                width: ctx.measureText(text).width
+            };
+        });
+    }
+
+    function sideClearance(nx, ny, widthA, widthB) {
+        const minSepX = (widthA + widthB) / 2 + LABEL_PAD;
+        const minSepY = LABEL_HEIGHT + LABEL_PAD;
+        const needX = Math.abs(nx) > 0.001 ? minSepX / (2 * Math.abs(nx)) : Number.POSITIVE_INFINITY;
+        const needY = Math.abs(ny) > 0.001 ? minSepY / (2 * Math.abs(ny)) : Number.POSITIVE_INFINITY;
+        return Math.max(10, Math.min(needX, needY));
+    }
+
+    function stackStep(nx, ny, prevWidth, nextWidth) {
+        if (Math.abs(nx) >= Math.abs(ny)) {
+            return (prevWidth + nextWidth) / 2 + LABEL_PAD;
+        }
+        return LABEL_HEIGHT + 4;
+    }
+
+    function placeLabelSide(list, other, axis, side) {
+        const placed = [];
+        const widest = list.length ? Math.max.apply(null, list.map(function (entry) {
+            return entry.width;
+        })) : 0;
+        const otherWidest = other.length ? Math.max.apply(null, other.map(function (entry) {
+            return entry.width;
+        })) : 0;
+        let gap = sideClearance(axis.nx, axis.ny, widest, otherWidest);
+        list.forEach(function (entry, index) {
+            if (index > 0) {
+                gap += stackStep(axis.nx, axis.ny, list[index - 1].width, entry.width);
+            }
+            placed.push({
+                x: axis.mx + axis.nx * gap * side,
+                y: axis.my + axis.ny * gap * side,
+                text: entry.text
+            });
+        });
+        return placed;
+    }
+
+    function bidirectionalLabelPlacements(ctx) {
+        const placed = [];
+        if (!lastGraph || !network) {
+            return placed;
+        }
+        const pairs = edgePairGroups(lastGraph);
+        Object.keys(pairs).forEach(function (key) {
+            const pair = pairs[key];
+            if (!isBidirectionalPair(pair)) {
+                return;
+            }
+            const sample = pair.fwd[0] || pair.rev[0];
+            const axis = pairAxis(sample.edge.from, sample.edge.to);
+            if (!axis) {
+                return;
+            }
+            const below = measurePairLabels(ctx, pair.fwd);
+            const above = measurePairLabels(ctx, pair.rev);
+            placeLabelSide(below, above, axis, 1).forEach(function (item) {
+                placed.push(item);
+            });
+            placeLabelSide(above, below, axis, -1).forEach(function (item) {
+                placed.push(item);
+            });
+        });
+        return placed;
+    }
+
+    function drawBidirectionalLabels(ctx) {
+        const theme = themePalette();
+        bidirectionalLabelPlacements(ctx).forEach(function (item) {
+            paintDirectedLabel(ctx, item.x, item.y, item.text, theme);
+        });
+    }
+
+    function visEdges(graph) {
+        const theme = themePalette();
+        const pairs = edgePairGroups(graph);
+        const pairOf = {};
+        Object.keys(pairs).forEach(function (key) {
+            pairs[key].fwd.concat(pairs[key].rev).forEach(function (item) {
+                pairOf[item.index] = pairs[key];
+            });
+        });
+        const sameDir = {};
+        graph.edges.forEach(function (edge, index) {
+            const key = edge.from + "\0" + edge.to;
+            if (!sameDir[key]) {
+                sameDir[key] = [];
+            }
+            sameDir[key].push(index);
         });
         return graph.edges.map(function (edge, index) {
             const label = edge.label || "";
-            const group = groups[edge.from + "\0" + edge.to] || [index];
+            const pair = pairOf[index];
+            const bidirectional = isBidirectionalPair(pair);
+            const group = sameDir[edge.from + "\0" + edge.to] || [index];
             const slot = group.indexOf(index);
             const mid = (group.length - 1) / 2;
             const offset = slot - mid;
             let smooth;
-            if (group.length === 1) {
+            if (bidirectional) {
+                smooth = { enabled: false };
+            } else if (group.length === 1) {
                 smooth = { type: "cubicBezier", forceDirection: "horizontal", roundness: 0.22 };
             } else if (offset === 0) {
                 smooth = { type: "cubicBezier", forceDirection: "horizontal", roundness: 0.18 };
@@ -504,17 +768,17 @@ window.CadminResourceGraph = (function () {
                 id: String(index),
                 from: edge.from,
                 to: edge.to,
-                label: abbreviate(label, 24),
+                label: bidirectional ? "" : abbreviate(label, 24),
                 title: label,
                 arrows: { to: { enabled: true, scaleFactor: 0.75 } },
-                color: { color: "#b7b9cc", highlight: "#4e73df" },
+                color: { color: theme.border, highlight: theme.primary },
                 font: {
-                    align: "middle",
+                    align: "horizontal",
                     size: 11,
-                    color: "#858796",
+                    color: theme.muted,
                     face: "system-ui, sans-serif",
-                    strokeWidth: 3,
-                    strokeColor: "#fff"
+                    strokeWidth: 4,
+                    strokeColor: theme.canvas
                 },
                 smooth: smooth
             };
@@ -651,10 +915,11 @@ window.CadminResourceGraph = (function () {
     }
 
     function visNodes(graph) {
+        const theme = themePalette();
         return Object.keys(graph.nodes).map(function (key) {
             const node = graph.nodes[key];
             const focus = node.role === "focus";
-            const color = TYPE_COLORS[node.type] || "#6f42c1";
+            const color = TYPE_COLORS[node.type] || theme.primary;
             const subtitle = abbreviate(node.title, 28)
                 || (usesRoleCodeTitle(node.type) ? "" : node.id);
             const label = node.type + (subtitle ? "\n" + subtitle : "");
@@ -667,13 +932,21 @@ window.CadminResourceGraph = (function () {
                 margin: 10,
                 borderWidth: focus ? 3 : 2,
                 color: focus
-                    ? { background: "#4e73df", border: "#224abe", highlight: { background: "#224abe", border: "#224abe" } }
-                    : { background: "#fff", border: color, highlight: { background: "#f8f9fc", border: color } },
+                    ? {
+                        background: theme.primary,
+                        border: theme.primary,
+                        highlight: { background: theme.primary, border: theme.primary }
+                    }
+                    : {
+                        background: theme.nodeBg,
+                        border: color,
+                        highlight: { background: theme.nodeHover, border: color }
+                    },
                 font: {
                     face: "system-ui, sans-serif",
                     size: 13,
-                    color: focus ? "#fff" : "#5a5c69",
-                    bold: { color: focus ? "#fff" : "#5a5c69" }
+                    color: focus ? theme.onPrimary : theme.text,
+                    bold: { color: focus ? theme.onPrimary : theme.text }
                 }
             };
         });
@@ -697,6 +970,297 @@ window.CadminResourceGraph = (function () {
         destroyNetwork();
     }
 
+    function exportBasename() {
+        if (mountedResource && mountedResource.resourceType && mountedResource.id) {
+            return mountedResource.resourceType + "-" + mountedResource.id + "-reference-graph";
+        }
+        return "reference-graph";
+    }
+
+    function graphCanvas() {
+        return network && network.canvas && network.canvas.frame && network.canvas.frame.canvas;
+    }
+
+    function xmlEscape(value) {
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    function openPreparedTab(filename) {
+        const tab = window.open("about:blank", "_blank");
+        if (!tab) {
+            return null;
+        }
+        try {
+            tab.document.title = filename;
+            tab.document.body.style.margin = "0";
+            tab.document.body.style.fontFamily = "system-ui, sans-serif";
+            tab.document.body.textContent = "Preparing " + filename + "…";
+        } catch (ignore) {
+        }
+        return tab;
+    }
+
+    function showBlobInTab(tab, blob, filename) {
+        let file = blob;
+        try {
+            file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
+        } catch (ignore) {
+        }
+        const url = URL.createObjectURL(file);
+        if (!tab) {
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            link.rel = "noopener";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } else {
+            try {
+                tab.location.replace(url);
+            } catch (ignore) {
+                tab.location.href = url;
+            }
+        }
+        window.setTimeout(function () {
+            URL.revokeObjectURL(url);
+        }, 120000);
+    }
+
+    function toDom(point) {
+        if (!point || !network) {
+            return { x: 0, y: 0 };
+        }
+        return network.canvasToDOM({ x: point.x, y: point.y });
+    }
+
+    function edgeVias(edge) {
+        const type = edge && edge.edgeType;
+        if (!type || typeof type.getViaCoordinates !== "function") {
+            return [];
+        }
+        const via = type.getViaCoordinates();
+        if (!via) {
+            return [];
+        }
+        if (Array.isArray(via)) {
+            return via.filter(function (point) {
+                return point && typeof point.x === "number" && typeof point.y === "number";
+            });
+        }
+        if (typeof via.x === "number" && typeof via.y === "number") {
+            return [via];
+        }
+        return [];
+    }
+
+    function bezierPoint(from, vias, to, t) {
+        const u = 1 - t;
+        if (!vias || !vias.length) {
+            return {
+                x: from.x + (to.x - from.x) * t,
+                y: from.y + (to.y - from.y) * t
+            };
+        }
+        if (vias.length === 1) {
+            return {
+                x: u * u * from.x + 2 * u * t * vias[0].x + t * t * to.x,
+                y: u * u * from.y + 2 * u * t * vias[0].y + t * t * to.y
+            };
+        }
+        return {
+            x: u * u * u * from.x + 3 * u * u * t * vias[0].x + 3 * u * t * t * vias[1].x + t * t * t * to.x,
+            y: u * u * u * from.y + 3 * u * u * t * vias[0].y + 3 * u * t * t * vias[1].y + t * t * t * to.y
+        };
+    }
+
+    function tangentPoint(from, vias, to, t) {
+        const before = bezierPoint(from, vias, to, Math.max(0, t - 0.02));
+        const after = bezierPoint(from, vias, to, Math.min(1, t + 0.02));
+        return { x: after.x - before.x, y: after.y - before.y };
+    }
+
+    function svgArrow(from, vias, to, size) {
+        const tip = toDom(to);
+        const dir = tangentPoint(from, vias, to, 1);
+        const length = Math.hypot(dir.x, dir.y) || 1;
+        const ux = dir.x / length;
+        const uy = dir.y / length;
+        const px = -uy;
+        const py = ux;
+        const back = size * 0.9;
+        const half = size * 0.42;
+        const baseX = tip.x - ux * back;
+        const baseY = tip.y - uy * back;
+        return [
+            tip.x + "," + tip.y,
+            (baseX + px * half) + "," + (baseY + py * half),
+            (baseX - px * half) + "," + (baseY - py * half)
+        ].join(" ");
+    }
+
+    function svgPath(from, vias, to) {
+        const start = toDom(from);
+        const end = toDom(to);
+        if (!vias || !vias.length) {
+            return "M" + start.x + " " + start.y + " L" + end.x + " " + end.y;
+        }
+        if (vias.length === 1) {
+            const via = toDom(vias[0]);
+            return "M" + start.x + " " + start.y + " Q" + via.x + " " + via.y + " " + end.x + " " + end.y;
+        }
+        const a = toDom(vias[0]);
+        const b = toDom(vias[1]);
+        return "M" + start.x + " " + start.y + " C" + a.x + " " + a.y + " " + b.x + " " + b.y + " " + end.x + " " + end.y;
+    }
+
+    function svgHaloText(x, y, text, fill, stroke, size) {
+        return '<text x="' + x + '" y="' + y + '" text-anchor="middle" dominant-baseline="middle" ' +
+            'font-family="system-ui, sans-serif" font-size="' + size + '" fill="' + xmlEscape(fill) + '" ' +
+            'stroke="' + xmlEscape(stroke) + '" stroke-width="4" stroke-linejoin="round" paint-order="stroke">' +
+            xmlEscape(text) + "</text>";
+    }
+
+    function buildGraphSvg() {
+        const el = document.getElementById("resource-graph");
+        const theme = themePalette();
+        const width = el ? el.clientWidth : 800;
+        const height = el ? el.clientHeight : 420;
+        const scale = network && typeof network.getScale === "function" ? network.getScale() : 1;
+        const parts = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height +
+                '" viewBox="0 0 ' + width + " " + height + '" role="img" aria-label="Reference graph">',
+            '<rect width="100%" height="100%" fill="' + xmlEscape(theme.canvas) + '"/>'
+        ];
+        const edgeColor = theme.border;
+        const arrowSize = Math.max(8, 12 * scale);
+        if (network && network.body && network.body.edges) {
+            Object.keys(network.body.edges).forEach(function (id) {
+                const edge = network.body.edges[id];
+                if (!edge || !edge.fromPoint || !edge.toPoint) {
+                    return;
+                }
+                const vias = edgeVias(edge);
+                parts.push(
+                    '<path d="' + svgPath(edge.fromPoint, vias, edge.toPoint) +
+                        '" fill="none" stroke="' + xmlEscape(edgeColor) + '" stroke-width="' +
+                        Math.max(1, 1.5 * scale) + '"/>'
+                );
+                parts.push(
+                    '<polygon points="' + svgArrow(edge.fromPoint, vias, edge.toPoint, arrowSize) +
+                        '" fill="' + xmlEscape(edgeColor) + '"/>'
+                );
+                const label = edge.options && edge.options.label;
+                if (label && String(label).trim()) {
+                    const mid = toDom(bezierPoint(edge.fromPoint, vias, edge.toPoint, 0.5));
+                    parts.push(svgHaloText(mid.x, mid.y, String(label).trim(), theme.muted, theme.canvas, 11));
+                }
+            });
+        }
+        if (lastGraph && network && typeof network.getBoundingBox === "function") {
+            Object.keys(lastGraph.nodes).forEach(function (key) {
+                const node = lastGraph.nodes[key];
+                const box = network.getBoundingBox(key);
+                if (!box) {
+                    return;
+                }
+                const topLeft = toDom({ x: box.left, y: box.top });
+                const bottomRight = toDom({ x: box.right, y: box.bottom });
+                const x = topLeft.x;
+                const y = topLeft.y;
+                const w = Math.max(1, bottomRight.x - topLeft.x);
+                const h = Math.max(1, bottomRight.y - topLeft.y);
+                const focus = node.role === "focus";
+                const fill = focus ? theme.primary : theme.nodeBg;
+                const stroke = focus ? theme.primary : (TYPE_COLORS[node.type] || theme.primary);
+                const text = focus ? theme.onPrimary : theme.text;
+                parts.push(
+                    '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h +
+                        '" rx="6" ry="6" fill="' + xmlEscape(fill) + '" stroke="' + xmlEscape(stroke) +
+                        '" stroke-width="' + (focus ? 3 : 2) + '"/>'
+                );
+                const subtitle = abbreviate(node.title, 28)
+                    || (usesRoleCodeTitle(node.type) ? "" : node.id);
+                const lines = [node.type].concat(subtitle ? [subtitle] : []);
+                const lineH = 16;
+                const cx = x + w / 2;
+                const cy = y + h / 2;
+                lines.forEach(function (line, index) {
+                    const ly = cy + (index - (lines.length - 1) / 2) * lineH;
+                    parts.push(
+                        '<text x="' + cx + '" y="' + ly + '" text-anchor="middle" dominant-baseline="middle" ' +
+                            'font-family="system-ui, sans-serif" font-size="13" fill="' + xmlEscape(text) + '">' +
+                            xmlEscape(line) + "</text>"
+                    );
+                });
+            });
+        }
+        const measure = document.createElement("canvas").getContext("2d");
+        bidirectionalLabelPlacements(measure).forEach(function (item) {
+            const point = toDom(item);
+            parts.push(svgHaloText(point.x, point.y, item.text, theme.muted, theme.canvas, 11 * scale));
+        });
+        parts.push("</svg>");
+        return parts.join("");
+    }
+
+    function exportGraphPng() {
+        if (!network) {
+            return;
+        }
+        network.redraw();
+        const canvas = graphCanvas();
+        if (!canvas) {
+            return;
+        }
+        const filename = exportBasename() + ".png";
+        const tab = openPreparedTab(filename);
+        const theme = themePalette();
+        const out = document.createElement("canvas");
+        out.width = canvas.width;
+        out.height = canvas.height;
+        const ctx = out.getContext("2d");
+        ctx.fillStyle = theme.canvas;
+        ctx.fillRect(0, 0, out.width, out.height);
+        ctx.drawImage(canvas, 0, 0);
+        const finish = function (blob) {
+            if (!blob) {
+                if (tab) {
+                    tab.document.body.textContent = "Could not export the graph as PNG.";
+                }
+                return;
+            }
+            showBlobInTab(tab, blob, filename);
+        };
+        if (out.toBlob) {
+            out.toBlob(finish, "image/png");
+            return;
+        }
+        const data = out.toDataURL("image/png");
+        const binary = atob(data.split(",")[1] || "");
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        finish(new Blob([bytes], { type: "image/png" }));
+    }
+
+    function exportGraphSvg() {
+        if (!network) {
+            return;
+        }
+        network.redraw();
+        const filename = exportBasename() + ".svg";
+        const tab = openPreparedTab(filename);
+        const blob = new Blob([buildGraphSvg()], { type: "image/svg+xml;charset=utf-8" });
+        showBlobInTab(tab, blob, filename);
+    }
+
     function draw(graph) {
         const el = document.getElementById("resource-graph");
         if (!el || typeof vis === "undefined" || !vis.Network) {
@@ -705,6 +1269,7 @@ window.CadminResourceGraph = (function () {
             }
             return;
         }
+        bindTheme();
         destroyNetwork();
         lastGraph = graph;
         focusKey = graph.focus;
@@ -780,6 +1345,9 @@ window.CadminResourceGraph = (function () {
         }
 
         network.once("afterDrawing", releaseHierarchicalLock);
+        network.on("afterDrawing", function (ctx) {
+            drawBidirectionalLabels(ctx);
+        });
         network.on("dragStart", function (params) {
             nodeWasDragged = false;
             nodeDragOrigin = params.pointer && params.pointer.DOM
@@ -835,11 +1403,11 @@ window.CadminResourceGraph = (function () {
         const paths = [];
         if (iterate) {
             paths.push("/" + type + "?_id=" + encodeURIComponent(id) +
-                "&_include=*&_include:iterate=*&_revinclude=*&_revinclude:iterate=*&_count=100");
+                "&_include=*&_include:iterate=*&_revinclude=*&_revinclude:iterate=*&_count=150");
         }
-        paths.push("/" + type + "?_id=" + encodeURIComponent(id) + "&_include=*&_revinclude=*&_count=100");
-        paths.push("/" + type + "?_id=" + encodeURIComponent(id) + "&_revinclude=*&_count=100");
-        paths.push("/" + type + "?_id=" + encodeURIComponent(id) + "&_revinclude=*:*&_count=100");
+        paths.push("/" + type + "?_id=" + encodeURIComponent(id) + "&_include=*&_revinclude=*&_count=150");
+        paths.push("/" + type + "?_id=" + encodeURIComponent(id) + "&_revinclude=*&_count=150");
+        paths.push("/" + type + "?_id=" + encodeURIComponent(id) + "&_revinclude=*:*&_count=150");
 
         function next(index) {
             if (index >= paths.length) {
@@ -972,7 +1540,7 @@ window.CadminResourceGraph = (function () {
 
     $(document).on("input.resourcegraphdepth", "#resource-graph-depth", function () {
         const n = parseInt(this.value, 10);
-        if (n === 1 || n === 2 || n === 3) {
+        if (n >= DEPTH_MIN && n <= DEPTH_MAX) {
             applyDepth(n);
         }
     });
@@ -982,6 +1550,14 @@ window.CadminResourceGraph = (function () {
     $(document).on("click.resourcegraphdeclutter", "#resource-graph-declutter", function (event) {
         event.preventDefault();
         declutter();
+    });
+    $(document).on("click.resourcegraphexportpng", "#resource-graph-export-png, #resource-graph-export-png-item", function (event) {
+        event.preventDefault();
+        exportGraphPng();
+    });
+    $(document).on("click.resourcegraphexportsvg", "#resource-graph-export-svg", function (event) {
+        event.preventDefault();
+        exportGraphSvg();
     });
     $(document).on("maximized.lte.card-widget.resourcegraphfs minimized.lte.card-widget.resourcegraphfs", function (event) {
         if (!$(event.target).closest("#resource-graph-card").length) {
