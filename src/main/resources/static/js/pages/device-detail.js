@@ -232,7 +232,7 @@ window.CadminDeviceDetail = (function () {
             device.name = device.deviceName;
         }
         delete device.patient;
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         const admin = CadminApp.isAdmin();
         $root.html(
             '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
@@ -524,7 +524,7 @@ window.CadminDeviceDetail = (function () {
     }
 
     function bindForms() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".devdetail");
 
         $root.on("click.devdetail", "[data-remove]", function () {

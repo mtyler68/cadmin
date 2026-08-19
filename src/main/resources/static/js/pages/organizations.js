@@ -1,9 +1,9 @@
 CadminApp.register("organizations", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/Organization/" + encodeURIComponent(token)).done(function (org) {
-            CadminOrganizationDetail.render(org);
-        }).fail(function () {
+        CadminWorkspace.openRoute("organizations", token, function (resource, $root) {
+            CadminOrganizationDetail.render(resource, $root);
+        }, function () {
             renderOrganizationList(token);
         });
         return;

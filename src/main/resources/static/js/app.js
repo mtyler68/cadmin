@@ -37,9 +37,18 @@ window.CadminApp = (function ($) {
             return;
         }
         setActive(route.name);
+        if (window.CadminWorkspace && CadminWorkspace.consumeHashChange()) {
+            return;
+        }
+        if (window.CadminWorkspace && CadminWorkspace.handleRoute(route)) {
+            return;
+        }
         const view = routes[route.name] || routes.dashboard;
-        CadminApi.destroySelects("#app-content");
-        $("#app-content").html('<div class="text-muted py-5 text-center">Loading…</div>');
+        if (window.CadminWorkspace && !CadminWorkspace.routeKey(route)) {
+            CadminWorkspace.showWorkspace(route);
+            CadminApi.destroySelects("#app-content");
+            $("#app-content").html('<div class="text-muted py-5 text-center">Loading…</div>');
+        }
         view(route.params);
     }
 
@@ -68,10 +77,16 @@ window.CadminApp = (function ($) {
 
     function start() {
         initChrome();
+        if (window.CadminWorkspace) {
+            CadminWorkspace.ensure();
+        }
         $.when(CadminApi.get("/api/auth/config"), CadminApi.get("/api/auth/me"))
             .done(function (configRes, meRes) {
                 config = configRes[0];
                 applyUser(meRes[0]);
+                if (window.CadminWorkspace && typeof CadminWorkspace.restore === "function") {
+                    CadminWorkspace.restore();
+                }
                 if (config.mode !== "local") {
                     $('.nav-item[data-route="users"]').addClass("d-none");
                 }

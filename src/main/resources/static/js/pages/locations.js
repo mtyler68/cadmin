@@ -1,9 +1,9 @@
 CadminApp.register("locations", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/Location/" + encodeURIComponent(token)).done(function (location) {
-            CadminLocationDetail.render(location);
-        }).fail(function () {
+        CadminWorkspace.openRoute("locations", token, function (resource, $root) {
+            CadminLocationDetail.render(resource, $root);
+        }, function () {
             renderLocationList(token);
         });
         return;

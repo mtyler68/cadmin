@@ -199,7 +199,7 @@ window.CadminSubscriptionDetail = (function () {
     function render(resource) {
         subscription = resource;
         topicResource = null;
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
                 "<div>" +
@@ -491,7 +491,7 @@ window.CadminSubscriptionDetail = (function () {
     }
 
     function bind() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".subdetail");
 
         $root.on("click.subdetail", "#sd-off", function () {

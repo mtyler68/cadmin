@@ -307,7 +307,7 @@ window.CadminCaregiverDetail = (function () {
     function render(resource) {
         caregiver = resource;
         const admin = isAdmin();
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-flex align-items-center justify-content-between mb-3">' +
                 "<div>" +
@@ -633,7 +633,7 @@ window.CadminCaregiverDetail = (function () {
     }
 
     function bindForms() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".cgdetail");
 
         $root.on("shown.bs.tab.cgdetail", "#cgd-tab-graph-btn", function () {

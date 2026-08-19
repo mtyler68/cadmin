@@ -47,6 +47,7 @@ window.CadminResourceGraph = (function () {
     let graphDepth = DEPTH_DEFAULT;
     let mountedResource = null;
     let mountedByKey = null;
+    let graphResizeObserver = null;
     let expandToken = 0;
     let themeBound = false;
 
@@ -227,21 +228,60 @@ window.CadminResourceGraph = (function () {
     function afterMaximizeChange() {
         window.requestAnimationFrame(function () {
             resizeNetwork();
-            window.setTimeout(resizeNetwork, 180);
+            window.setTimeout(resizeNetwork, 50);
+            window.setTimeout(resizeNetwork, 200);
         });
+    }
+
+    function graphBoxSize() {
+        const el = document.getElementById("resource-graph");
+        if (!el) {
+            return { width: 0, height: 0 };
+        }
+        let width = el.clientWidth;
+        let height = el.clientHeight;
+        if (isMaximized()) {
+            const cardEl = graphCard();
+            const body = cardEl && cardEl.querySelector(":scope > .card-body");
+            const header = cardEl && cardEl.querySelector(":scope > .card-header");
+            if (body && body.clientHeight) {
+                width = body.clientWidth || width;
+                height = body.clientHeight;
+            }
+            if (height < 80) {
+                const headerH = header ? header.offsetHeight : 0;
+                width = window.innerWidth;
+                height = Math.max(120, window.innerHeight - headerH);
+            }
+        }
+        return { width: width, height: height };
     }
 
     function resizeNetwork() {
         if (!network) {
             return;
         }
-        const el = document.getElementById("resource-graph");
-        if (!el || !el.clientWidth || !el.clientHeight) {
+        const size = graphBoxSize();
+        if (!size.width || !size.height) {
             return;
         }
-        network.setSize(el.clientWidth + "px", el.clientHeight + "px");
+        network.setSize(size.width + "px", size.height + "px");
         network.redraw();
         network.fit({ animation: false });
+    }
+
+    function ensureGraphObserver() {
+        const el = document.getElementById("resource-graph");
+        if (!el || typeof ResizeObserver === "undefined") {
+            return;
+        }
+        if (graphResizeObserver) {
+            graphResizeObserver.disconnect();
+        }
+        graphResizeObserver = new ResizeObserver(function () {
+            window.requestAnimationFrame(resizeNetwork);
+        });
+        graphResizeObserver.observe(el);
     }
 
     function detailHref(type, id) {
@@ -966,6 +1006,10 @@ window.CadminResourceGraph = (function () {
         expandToken += 1;
         mountedResource = null;
         mountedByKey = null;
+        if (graphResizeObserver) {
+            graphResizeObserver.disconnect();
+            graphResizeObserver = null;
+        }
         restoreMaximize();
         destroyNetwork();
     }
@@ -1394,6 +1438,7 @@ window.CadminResourceGraph = (function () {
             el.style.cursor = "grab";
         });
         el.style.cursor = "grab";
+        ensureGraphObserver();
         if (isMaximized()) {
             window.requestAnimationFrame(resizeNetwork);
         }
@@ -1565,6 +1610,9 @@ window.CadminResourceGraph = (function () {
         }
         afterMaximizeChange();
     });
+    $(document).on("click.resourcegraphfs", "#resource-graph-card [data-lte-toggle=\"card-maximize\"]", function () {
+        afterMaximizeChange();
+    });
     $(document).on("keydown.resourcegraphfs", function (event) {
         if (event.key === "Escape" && isMaximized()) {
             restoreMaximize();
@@ -1575,8 +1623,6 @@ window.CadminResourceGraph = (function () {
             resizeNetwork();
         }
     });
-    $(window).on("hashchange.resourcegraph", destroy);
-
     return {
         card: card,
         mount: mount,

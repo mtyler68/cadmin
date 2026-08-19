@@ -1,9 +1,9 @@
 CadminApp.register("flags", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/Flag/" + encodeURIComponent(token)).done(function (flag) {
-            CadminFlagDetail.render(flag);
-        }).fail(function () {
+        CadminWorkspace.openRoute("flags", token, function (resource, $root) {
+            CadminFlagDetail.render(resource, $root);
+        }, function () {
             renderFlagList();
         });
         return;

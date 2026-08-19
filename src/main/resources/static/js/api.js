@@ -66,7 +66,8 @@ window.CadminApi = (function ($) {
     }
 
     function fhir(path, method, data) {
-        return ajax({
+        const verb = (method || "GET").toUpperCase();
+        const request = ajax({
             url: "/fhir" + path,
             method: method || "GET",
             data: data ? JSON.stringify(data) : undefined,
@@ -81,6 +82,18 @@ window.CadminApi = (function ($) {
                 Accept: "application/fhir+json"
             }, data ? { Prefer: "return=representation" } : {}, csrfHeaders())
         });
+        if (verb !== "GET" && verb !== "HEAD") {
+            request.done(function (body) {
+                if (window.CadminWorkspace && typeof CadminWorkspace.notifyWrite === "function") {
+                    CadminWorkspace.notifyWrite({
+                        method: verb,
+                        path: path,
+                        resource: body || data || null
+                    });
+                }
+            });
+        }
+        return request;
     }
 
     function showAlert(selector, type, message) {

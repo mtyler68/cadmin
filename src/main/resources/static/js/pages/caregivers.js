@@ -1,9 +1,9 @@
 CadminApp.register("caregivers", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/RelatedPerson/" + encodeURIComponent(token)).done(function (person) {
-            CadminCaregiverDetail.render(person);
-        }).fail(function () {
+        CadminWorkspace.openRoute("caregivers", token, function (resource, $root) {
+            CadminCaregiverDetail.render(resource, $root);
+        }, function () {
             renderCaregiverList(token);
         });
         return;

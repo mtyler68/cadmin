@@ -268,7 +268,7 @@ window.CadminOrganizationDetail = (function () {
 
     function render(resource) {
         org = resource;
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
                 "<div>" +
@@ -789,7 +789,7 @@ window.CadminOrganizationDetail = (function () {
     }
 
     function bindForms() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".orgdetail");
 
         $root.on("click.orgdetail", "[data-edit-role]", function () {

@@ -327,7 +327,7 @@ window.CadminPractitionerDetail = (function () {
     function render(resource) {
         practitioner = resource;
         const admin = isAdmin();
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-flex align-items-center justify-content-between mb-3">' +
                 "<div>" +
@@ -912,7 +912,7 @@ window.CadminPractitionerDetail = (function () {
     }
 
     function bindForms() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".prdetail");
 
         $root.on("shown.bs.tab.prdetail", "#prd-tab-graph-btn", function () {

@@ -329,7 +329,7 @@ window.CadminConsentDetail = (function () {
         consent = resource;
         provisionDraft = emptyProvision();
         editingPath = null;
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
                 "<div>" +
@@ -683,7 +683,7 @@ window.CadminConsentDetail = (function () {
     }
 
     function bind() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".consentdetail");
 
         $root.on("click.consentdetail", "#cd-activate", function () {

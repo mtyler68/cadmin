@@ -1,9 +1,9 @@
 CadminApp.register("pds-policies", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/Library/" + encodeURIComponent(token)).done(function (library) {
-            CadminPdsPolicyDetail.render(library);
-        }).fail(function () {
+        CadminWorkspace.openRoute("pds-policies", token, function (resource, $root) {
+            CadminPdsPolicyDetail.render(resource, $root);
+        }, function () {
             renderPdsPolicyList(token);
         });
         return;

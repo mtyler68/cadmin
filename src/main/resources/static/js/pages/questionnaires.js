@@ -1,9 +1,9 @@
 CadminApp.register("questionnaires", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/Questionnaire/" + encodeURIComponent(token)).done(function (questionnaire) {
-            CadminQuestionnaireDetail.render(questionnaire);
-        }).fail(function () {
+        CadminWorkspace.openRoute("questionnaires", token, function (resource, $root) {
+            CadminQuestionnaireDetail.render(resource, $root);
+        }, function () {
             renderQuestionnaireList(token);
         });
         return;

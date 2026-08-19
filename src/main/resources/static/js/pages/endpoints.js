@@ -1,9 +1,9 @@
 CadminApp.register("endpoints", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/Endpoint/" + encodeURIComponent(token)).done(function (endpoint) {
-            CadminEndpointDetail.render(endpoint);
-        }).fail(function () {
+        CadminWorkspace.openRoute("endpoints", token, function (resource, $root) {
+            CadminEndpointDetail.render(resource, $root);
+        }, function () {
             renderEndpointList(token);
         });
         return;

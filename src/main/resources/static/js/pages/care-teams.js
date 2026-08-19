@@ -1,9 +1,9 @@
 CadminApp.register("care-teams", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/CareTeam/" + encodeURIComponent(token)).done(function (team) {
-            CadminCareTeamDetail.render(team);
-        }).fail(function () {
+        CadminWorkspace.openRoute("care-teams", token, function (resource, $root) {
+            CadminCareTeamDetail.render(resource, $root);
+        }, function () {
             renderCareTeamList(token);
         });
         return;

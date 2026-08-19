@@ -1,9 +1,9 @@
 CadminApp.register("practitioners", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/Practitioner/" + encodeURIComponent(token)).done(function (practitioner) {
-            CadminPractitionerDetail.render(practitioner);
-        }).fail(function () {
+        CadminWorkspace.openRoute("practitioners", token, function (resource, $root) {
+            CadminPractitionerDetail.render(resource, $root);
+        }, function () {
             renderPractitionerList(token);
         });
         return;

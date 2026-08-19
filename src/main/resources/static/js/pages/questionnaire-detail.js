@@ -315,7 +315,7 @@ window.CadminQuestionnaireDetail = (function () {
         questionnaire.item = questionnaire.item || [];
         selectedPath = questionnaire.item.length ? "0" : "";
         previewAnswers = {};
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
                 "<div>" +
@@ -1108,7 +1108,7 @@ window.CadminQuestionnaireDetail = (function () {
     }
 
     function bind() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".qdetail");
 
         $root.on("click.qdetail", "[data-select]", function (event) {

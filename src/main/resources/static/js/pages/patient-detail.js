@@ -423,7 +423,7 @@ window.CadminPatientDetail = (function () {
         patient = resource;
         careTeams = [];
         const admin = isAdmin();
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-flex align-items-center justify-content-between mb-3">' +
                 "<div>" +
@@ -999,7 +999,7 @@ window.CadminPatientDetail = (function () {
     }
 
     function bindForms() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".ptdetail");
 
         $root.on("shown.bs.tab.ptdetail", "#pd-tab-graph-btn", function () {

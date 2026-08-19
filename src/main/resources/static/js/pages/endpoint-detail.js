@@ -187,7 +187,7 @@ window.CadminEndpointDetail = (function () {
 
     function render(resource) {
         endpoint = resource;
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
                 "<div>" +
@@ -413,7 +413,7 @@ window.CadminEndpointDetail = (function () {
     }
 
     function bind() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".epdetail");
 
         $root.on("click.epdetail", "[data-remove-payload]", function () {

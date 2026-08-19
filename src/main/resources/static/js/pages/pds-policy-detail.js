@@ -1285,7 +1285,7 @@ window.CadminPdsPolicyDetail = (function () {
 
     function render(resource) {
         library = resource;
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
                 "<div>" +
@@ -1677,7 +1677,7 @@ window.CadminPdsPolicyDetail = (function () {
     }
 
     function bindForms() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".pdsdetail");
 
         $root.on("click.pdsdetail", "[data-remove]", function () {

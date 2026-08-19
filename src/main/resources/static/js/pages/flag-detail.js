@@ -305,7 +305,7 @@ window.CadminFlagDetail = (function () {
 
     function render(resource) {
         flag = resource;
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
                 "<div>" +
@@ -363,7 +363,7 @@ window.CadminFlagDetail = (function () {
     }
 
     function bind() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".flagdetail");
 
         $("#fd-edit-modal").on("show.bs.modal", populateForm);

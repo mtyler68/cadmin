@@ -165,7 +165,7 @@ window.CadminSubscriptionTopicDetail = (function () {
 
     function render(resource) {
         topic = resource;
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.html(
             '<div class="d-sm-flex align-items-center justify-content-between mb-4">' +
                 "<div>" +
@@ -404,7 +404,7 @@ window.CadminSubscriptionTopicDetail = (function () {
     }
 
     function bind() {
-        const $root = $("#app-content");
+        const $root = $(CadminWorkspace.root());
         $root.off(".topicdetail");
 
         $("#td-basic-modal").on("show.bs.modal", function () {

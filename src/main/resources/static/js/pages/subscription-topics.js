@@ -1,9 +1,9 @@
 CadminApp.register("subscription-topics", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/SubscriptionTopic/" + encodeURIComponent(token)).done(function (topic) {
-            CadminSubscriptionTopicDetail.render(topic);
-        }).fail(function () {
+        CadminWorkspace.openRoute("subscription-topics", token, function (resource, $root) {
+            CadminSubscriptionTopicDetail.render(resource, $root);
+        }, function () {
             renderSubscriptionTopicList(token);
         });
         return;

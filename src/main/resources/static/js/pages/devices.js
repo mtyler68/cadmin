@@ -1,9 +1,9 @@
 CadminApp.register("devices", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/Device/" + encodeURIComponent(token)).done(function (device) {
-            CadminDeviceDetail.render(device);
-        }).fail(function () {
+        CadminWorkspace.openRoute("devices", token, function (resource, $root) {
+            CadminDeviceDetail.render(resource, $root);
+        }, function () {
             renderDeviceList(token);
         });
         return;

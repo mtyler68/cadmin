@@ -142,9 +142,152 @@
     margin-bottom: 0;
 }
 
-.app-content {
+html,
+body {
+    height: 100%;
+    overflow: hidden;
+}
+
+.app-wrapper {
+    height: 100%;
+    min-height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+}
+
+body.layout-fixed .app-main {
+    overflow: hidden;
+    min-height: 0;
+}
+
+.app-main > .app-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
     padding-top: 1.25rem;
     padding-bottom: 1rem;
+}
+
+.content-workspace-tabs-bar {
+    z-index: 1020;
+    flex-shrink: 0;
+    background: var(--bs-tertiary-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+    padding: 0.65rem 1.25rem 0.55rem;
+}
+
+.content-workspace-tabs {
+    gap: 0.35rem;
+    overflow-x: auto;
+    margin-bottom: 0;
+    padding-bottom: 0.15rem;
+}
+
+.app-main:has(#app-content-tabs-bar:not(.d-none)) > .app-content {
+    padding-top: 0.85rem;
+}
+
+.content-workspace-tabs .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+    max-width: 16rem;
+}
+
+.content-workspace-tabs [data-workspace-drag] {
+    cursor: grab;
+}
+
+.content-workspace-tabs .nav-item.is-dragging {
+    opacity: 0.45;
+}
+
+.content-workspace-tabs .nav-item:has(.drop-before) .nav-link,
+.content-workspace-tabs .nav-link.drop-before {
+    box-shadow: inset 3px 0 0 var(--bs-primary);
+}
+
+.content-workspace-tabs .nav-item:has(.drop-after) .nav-link,
+.content-workspace-tabs .nav-link.drop-after {
+    box-shadow: inset -3px 0 0 var(--bs-primary);
+}
+
+.content-workspace-tabs .nav-item:has(.nav-link.active.drop-before) .nav-link.active,
+.content-workspace-tabs .nav-link.active.drop-before {
+    box-shadow: inset 3px 0 0 var(--bs-white);
+}
+
+.content-workspace-tabs .nav-item:has(.nav-link.active.drop-after) .nav-link.active,
+.content-workspace-tabs .nav-link.active.drop-after {
+    box-shadow: inset -3px 0 0 var(--bs-white);
+}
+
+.content-workspace-tabs .content-tab-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.content-workspace-tabs .content-tab-pin {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.workspace-tab-menu {
+    position: fixed;
+    z-index: 2000;
+    min-width: 14.5rem;
+}
+
+.workspace-tab-menu .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#workspace-history-menu,
+#workspace-bookmark-menu {
+    max-height: min(70vh, 32rem);
+    overflow-y: auto;
+    min-width: 16rem;
+}
+
+.workspace-bookmark-row {
+    display: flex;
+    align-items: stretch;
+}
+
+.workspace-bookmark-row .dropdown-item {
+    min-width: 0;
+}
+
+.workspace-bookmark-remove {
+    flex-shrink: 0;
+    border: 0;
+    background: transparent;
+    color: var(--bs-secondary-color);
+    padding: 0 0.65rem;
+    line-height: 1;
+}
+
+.content-workspace-tabs .content-tab-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-left: 0.15rem;
+    border: 0;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: inherit;
+    line-height: 1;
+    opacity: 0.65;
+}
+
+.content-workspace-tabs .content-tab-close:hover {
+    opacity: 1;
+    background: var(--bs-tertiary-bg);
 }
 
 .card-header.d-flex::after,
@@ -593,16 +736,32 @@
 #resource-graph-card .card-tools {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.25rem;
+    margin-left: auto;
 }
 
 #resource-graph-card .card-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     overflow: visible;
+}
+
+#resource-graph-card .card-header::after {
+    display: none;
+    content: none;
 }
 
 #resource-graph-card .resource-graph-export .btn {
     display: inline-flex;
     align-items: center;
+}
+
+#resource-graph-card [data-lte-toggle="card-maximize"] {
+    flex-shrink: 0;
 }
 
 #resource-graph-card.maximized-card {
@@ -611,17 +770,33 @@
     background: var(--bs-body-bg);
 }
 
+#resource-graph-card.maximized-card > .card-header {
+    flex-shrink: 0;
+    z-index: 2;
+}
+
 #resource-graph-card.maximized-card > .card-body {
     flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
 
 #resource-graph-card.maximized-card .resource-graph {
     flex: 1 1 auto;
-    height: auto;
+    width: 100%;
+    height: 100%;
     min-height: 0;
+}
+
+#resource-graph-card.maximized-card .resource-graph .vis-network {
+    width: 100%;
+    height: 100%;
+}
+
+#resource-graph-card.maximized-card [data-lte-icon="minimize"] {
+    display: inline-block !important;
 }
 
 .list-pager {

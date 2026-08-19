@@ -1,9 +1,9 @@
 CadminApp.register("consents", function (params) {
     const token = CadminApi.routeParamId(params);
     if (token) {
-        CadminApi.fhir("/Consent/" + encodeURIComponent(token)).done(function (consent) {
-            CadminConsentDetail.render(consent);
-        }).fail(function () {
+        CadminWorkspace.openRoute("consents", token, function (resource, $root) {
+            CadminConsentDetail.render(resource, $root);
+        }, function () {
             renderConsentList();
         });
         return;

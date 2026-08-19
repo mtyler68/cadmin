@@ -76,6 +76,22 @@
                     </a>
                 </li>
                 <li class="nav-item dropdown">
+                    <button type="button" class="nav-link border-0 bg-transparent" id="workspace-history"
+                            aria-label="Open pages" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-window-stack" aria-hidden="true"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" id="workspace-history-menu"
+                        aria-labelledby="workspace-history"></ul>
+                </li>
+                <li class="nav-item dropdown">
+                    <button type="button" class="nav-link border-0 bg-transparent" id="workspace-bookmarks"
+                            aria-label="Bookmarks" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-bookmark" aria-hidden="true"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" id="workspace-bookmark-menu"
+                        aria-labelledby="workspace-bookmarks"></ul>
+                </li>
+                <li class="nav-item dropdown">
                     <button type="button" class="nav-link border-0 bg-transparent" id="bd-theme"
                             aria-label="Toggle color scheme" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-sun-fill d-none" data-lte-theme-icon="light"></i>
@@ -240,6 +256,7 @@
 <script src="/js/resource-graph.js"></script>
 <script src="/js/spel-completion-policy.js"></script>
 <script src="/js/app.js"></script>
+<script src="/js/workspace.js"></script>
 <script src="/js/pages/dashboard.js"></script>
 <script src="/js/pages/patient-detail.js"></script>
 <script src="/js/pages/patients.js"></script>
